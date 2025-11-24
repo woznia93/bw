@@ -1,7 +1,8 @@
 import { notFound } from 'next/navigation'
-import { CustomMDX } from 'app/components/mdx'
-import { formatDate, getBlogPosts } from 'app/blog/utils'
-import { baseUrl } from 'app/sitemap'
+import { CustomMDX } from '@/components/mdx'
+import { formatDate, getBlogPosts } from '@/utils/blogUtils'
+
+const baseUrl = 'https://bradywoz.com'
 
 export async function generateStaticParams() {
   let posts = getBlogPosts()
@@ -11,21 +12,23 @@ export async function generateStaticParams() {
   }))
 }
 
-export function generateMetadata({ params }) {
-  let post = getBlogPosts().find((post) => post.slug === params.slug)
-  if (!post) {
-    return
-  }
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;            // ✅ await params
+  const posts = getBlogPosts();             // ✅ synchronous
+  const post = posts.find((p) => p.slug === slug);
 
-  let {
+  if (!post) return {}; // ✅ handle missing post safely
+
+  const {
     title,
     publishedAt: publishedTime,
     summary: description,
     image,
-  } = post.metadata
-  let ogImage = image
+  } = post.metadata;
+
+  const ogImage = image
     ? image
-    : `${baseUrl}/og?title=${encodeURIComponent(title)}`
+    : `${baseUrl}/og?title=${encodeURIComponent(title)}`;
 
   return {
     title,
@@ -36,11 +39,7 @@ export function generateMetadata({ params }) {
       type: 'article',
       publishedTime,
       url: `${baseUrl}/blog/${post.slug}`,
-      images: [
-        {
-          url: ogImage,
-        },
-      ],
+      images: [{ url: ogImage }],
     },
     twitter: {
       card: 'summary_large_image',
@@ -48,11 +47,14 @@ export function generateMetadata({ params }) {
       description,
       images: [ogImage],
     },
-  }
+  };
 }
 
-export default function Blog({ params }) {
-  let post = getBlogPosts().find((post) => post.slug === params.slug)
+
+export default async function Blog({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params // ✅ await params
+  const posts = getBlogPosts()
+  const post = posts.find((p) => p.slug === slug)
 
   if (!post) {
     notFound()

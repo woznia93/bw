@@ -1,9 +1,12 @@
 {
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --turbopack",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "prepare": "husky"
   },
   "dependencies": {
     "@tailwindcss/postcss": "4.0.0-alpha.13",
@@ -13,7 +16,8 @@
     "@vercel/analytics": "^1.1.3",
     "@vercel/speed-insights": "^1.0.9",
     "geist": "1.2.2",
-    "next": "canary",
+    "husky": "^9.1.7",
+    "next": "^15.5.2",
     "next-mdx-remote": "^4.4.1",
     "postcss": "^8.4.35",
     "react": "18.2.0",
@@ -21,5 +25,15 @@
     "sugar-high": "^0.6.0",
     "tailwindcss": "4.0.0-alpha.13",
     "typescript": "5.3.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "react": "18.2.0",
+      "react-dom": "18.2.0"
+    }
+  },
+  "devDependencies": {
+    "eslint": "^9.39.1",
+    "eslint-config-next": "15.5.2"
   }
 }
