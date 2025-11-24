@@ -8,7 +8,7 @@ export default function About() {
       <div className="prose dark:prose-invert max-w-none">
         <p className="mb-4">
           {`I'm a software developer with a strong passion for machine learning and artificial intelligence. 
-          I love exploring how intelligent systems can analyze data, learn patterns, and solve real-world problems in creative ways.`}
+          I love exploring how new technologies will affect the future of tech.`}
         </p>
 
         <h2 className="mt-8 mb-4 text-xl font-semibold">
@@ -24,8 +24,7 @@ export default function About() {
         <ul className="list-disc list-inside mb-4">
           <li>Machine Learning & AI</li>
           <li>Full-stack Development</li>
-          <li>Problem Solving</li>
-          <li>Add your skills here</li>
+          <li>Back-end Development</li>
         </ul>
 
         <h2 className="mt-8 mb-4 text-xl font-semibold">
