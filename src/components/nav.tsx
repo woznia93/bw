@@ -7,7 +7,7 @@ const navItems = {
   '/blog': {
     name: 'about',
   },
-  'https://vercel.com/templates/next.js/portfolio-starter-kit': {
+  '/bradyresume.pdf': {
     name: 'resume',
   },
 }
