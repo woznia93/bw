@@ -8,7 +8,7 @@ const navItems = {
     name: 'about',
   },
   '/blog': {
-    name: 'blog posts',
+    name: 'blog',
   },
   '/bradyresume.pdf': {
     name: 'resume',
