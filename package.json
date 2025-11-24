@@ -17,8 +17,8 @@
     "@vercel/speed-insights": "^1.0.9",
     "geist": "1.2.2",
     "husky": "^9.1.7",
+    "markdown-it": "^13.0.2",
     "next": "^15.5.2",
-    "next-mdx-remote": "^4.4.1",
     "postcss": "^8.4.35",
     "react": "18.2.0",
     "react-dom": "18.2.0",
@@ -29,7 +29,8 @@
   "pnpm": {
     "overrides": {
       "react": "18.2.0",
-      "react-dom": "18.2.0"
+      "react-dom": "18.2.0",
+      "react-server-dom-webpack": "18.2.0"
     }
   },
   "devDependencies": {
