@@ -26,7 +26,7 @@ export default function Page() {
             <div className="flex justify-between items-start gap-2">
               <div className="flex-1">
                 <h3 className="font-semibold text-blue-600 dark:text-blue-300 hover:underline">
-                  Attention is All You Need 📄
+                  Attention is All You Need
                 </h3>
                 <p className="text-sm text-blue-500 dark:text-blue-400 mt-1">
                   A foundational paper introducing the Transformer architecture, which powers modern NLP and AI systems.
