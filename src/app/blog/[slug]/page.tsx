@@ -112,7 +112,7 @@ export default async function Blog({ params }: { params: Promise<{ slug: string 
               className="border p-4 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800 transition"
             >
               <h3 className="font-medium text-lg">{rec.metadata.title}</h3>
-              <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+              <p className="text-sm text-neutral-400 dark:text-neutral-400 mt-1">
                 {rec.metadata.summary}
               </p>
             </a>
