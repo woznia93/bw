@@ -15,7 +15,9 @@ export default function About() {
           My Background
         </h2>
         <p className="mb-4">
-          {`I enjoy learning new technologies and applying them to build solutions. `}
+          {`I’ve been drawn to computers for as long as I can remember, starting with exploring how technology works and eventually teaching myself to program discord bots. 
+          That early curiosity grew into a passion for building software, experimenting with new tools, and creating projects that challenge me to learn more. 
+          Over the years, I’ve developed a strong technical foundation through personal projects, academic work, and hands-on experience, and I’m always looking for new ways to grow as a developer.`}
         </p>
 
         <h2 className="mt-8 mb-4 text-xl font-semibold">
