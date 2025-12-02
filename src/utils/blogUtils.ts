@@ -7,6 +7,7 @@ type Metadata = {
   summary: string
   image?: string
   recommended?: boolean
+  author?: string
 }
 
 function parseFrontmatter(fileContent: string) {
