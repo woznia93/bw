@@ -21,7 +21,7 @@ export default function Page() {
       <p className="mb-4">
         {`I'm a software developer with a strong passion for machine learning and artificial intelligence. 
         I love exploring how intelligent systems can analyze data, learn patterns, and solve real-world problems in creative ways. 
-        My interest in software development goes beyond just building applications—I enjoy understanding how things work under the hood and continuously refining my skills to write cleaner, smarter, and more scalable code.`}
+        I enjoy understanding how things work under the hood and continuously refining my skills to write cleaner, smarter, and more scalable code.`}
       </p>
       <div className="my-8">
         <BlogPosts />
