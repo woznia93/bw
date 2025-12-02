@@ -36,6 +36,14 @@ export default function About() {
           {`Feel free to reach out if you'd like to collaborate or discuss anything related to software development, AI, or machine learning.`}
         </p>
       </div>
+
+      <div className="my-8">
+        Email:
+        <p>
+            woznia93@msu.edu
+        </p>
+        
+      </div>
     </section>
   )
 }
