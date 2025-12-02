@@ -13,11 +13,11 @@ export async function generateStaticParams() {
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params;            // ✅ await params
-  const posts = getBlogPosts();             // ✅ synchronous
+  const { slug } = await params;            
+  const posts = getBlogPosts();             
   const post = posts.find((p) => p.slug === slug);
 
-  if (!post) return {}; // ✅ handle missing post safely
+  if (!post) return {}; 
 
   const {
     title,
@@ -52,7 +52,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 
 export default async function Blog({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params // ✅ await params
+  const { slug } = await params // 
   const posts = getBlogPosts()
   const post = posts.find((p) => p.slug === slug)
 
@@ -60,7 +60,12 @@ export default async function Blog({ params }: { params: Promise<{ slug: string 
     notFound()
   }
 
-  return (
+  const recommended = posts
+    .filter((p) => p.slug !== post.slug)
+    .slice(0, 3)
+
+
+ return (
     <section>
       <script
         type="application/ld+json"
@@ -95,6 +100,25 @@ export default async function Blog({ params }: { params: Promise<{ slug: string 
       <article className="prose">
         <CustomMDX source={post.content} />
       </article>
+
+      {/* Recommended Reads Section */}
+      <div className="mt-16">
+        <h2 className="font-semibold text-xl mb-4">Recommended Reads</h2>
+        <div className="grid gap-4 md:grid-cols-3">
+          {recommended.map((rec) => (
+            <a
+              key={rec.slug}
+              href={`/blog/${rec.slug}`}
+              className="border p-4 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800 transition"
+            >
+              <h3 className="font-medium text-lg">{rec.metadata.title}</h3>
+              <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+                {rec.metadata.summary}
+              </p>
+            </a>
+          ))}
+        </div>
+      </div>
     </section>
   )
 }
