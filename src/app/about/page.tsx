@@ -15,7 +15,7 @@ export default function About() {
           My Background
         </h2>
         <p className="mb-4">
-          {`I’ve been drawn to computers for as long as I can remember, starting with exploring how technology works and eventually teaching myself to program discord bots. 
+          {`I’ve been drawn to computers for as long as I can remember, starting with exploring how technology works and eventually teaching myself to program discord. 
           That early curiosity grew into a passion for building software, experimenting with new tools, and creating projects that challenge me to learn more. 
           Over the years, I’ve developed a strong technical foundation through personal projects, academic work, and hands-on experience, and I’m always looking for new ways to grow as a developer.`}
         </p>
@@ -35,14 +35,6 @@ export default function About() {
         <p>
           {`Feel free to reach out if you'd like to collaborate or discuss anything related to software development, AI, or machine learning.`}
         </p>
-      </div>
-
-      <div className="my-8">
-        Email:
-        <p>
-            woznia93@msu.edu
-        </p>
-        
       </div>
     </section>
   )
