@@ -6,6 +6,7 @@ type Metadata = {
   publishedAt: string
   summary: string
   image?: string
+  recommended?: boolean
 }
 
 function parseFrontmatter(fileContent: string) {
@@ -18,8 +19,11 @@ function parseFrontmatter(fileContent: string) {
 
   frontMatterLines.forEach((line) => {
     let [key, ...valueArr] = line.split(': ')
-    let value = valueArr.join(': ').trim()
+    let value: any = valueArr.join(': ').trim()
     value = value.replace(/^['"](.*)['"]$/, '$1') // Remove quotes
+    // Handle boolean values
+    if (value === 'true') value = true
+    if (value === 'false') value = false
     metadata[key.trim() as keyof Metadata] = value
   })
 
@@ -51,6 +55,19 @@ function getMDXData(dir) {
 
 export function getBlogPosts() {
   return getMDXData(path.join(process.cwd(), 'src', 'app', 'blog', 'posts'))
+}
+
+export function getRecommendedPosts() {
+  return getBlogPosts()
+    .filter((post) => post.metadata.recommended === true)
+    .sort((a, b) => {
+      if (
+        new Date(a.metadata.publishedAt) > new Date(b.metadata.publishedAt)
+      ) {
+        return -1
+      }
+      return 1
+    })
 }
 
 export function formatDate(date: string, includeRelative = false) {
