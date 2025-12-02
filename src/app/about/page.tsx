@@ -15,7 +15,7 @@ export default function About() {
           My Background
         </h2>
         <p className="mb-4">
-          {`I enjoy learning new technologies and applying them to build innovative solutions. `}
+          {`I enjoy learning new technologies and applying them to build solutions. `}
         </p>
 
         <h2 className="mt-8 mb-4 text-xl font-semibold">
