@@ -1,0 +1,32 @@
+---
+title: "Desk Dashboard"
+publishedAt: "2025-09-23"
+summary: "A Raspberry Pi touchscreen dashboard that shows the current time and real-time weather in a clean dark theme using a FastAPI backend."
+recommended: true
+author: "Brady Wozniak"
+---
+
+The Desk Dashboard is a small personal project I built for my Raspberry Pi to act as a simple desktop information display. The idea was to have a clean dashboard running on a Pi touchscreen that shows useful info like the current time and local weather without needing to open a bunch of apps or tabs.
+
+It runs using a lightweight Python backend with **FastAPI** that fetches weather data from the OpenWeatherMap API, and a simple frontend built with **HTML, CSS, and JavaScript** that displays everything in a dark themed dashboard. The goal was to make something minimal, fast, and easy to run in kiosk mode on a Raspberry Pi.
+
+## Features
+
+**Real-Time Weather:** Pulls weather data from the OpenWeatherMap API and updates automatically.  
+**Live Clock:** Displays the current time directly on the dashboard.  
+**Dark Theme UI:** Simple and clean design made to look nice on a Pi touchscreen.  
+**Raspberry Pi Friendly:** Built to run smoothly on Raspberry Pi 3+ hardware.  
+**Error Handling:** If the weather API fails, the app falls back to default values so the dashboard still runs.
+
+## How It Works
+
+1. **Backend Server:** A FastAPI backend runs on the Pi and handles requests for weather data.
+2. **Weather API:** The backend fetches weather information using the OpenWeatherMap API.
+3. **Frontend Dashboard:** A simple HTML/JS frontend fetches data from the backend and updates the display.
+4. **Touchscreen Display:** The dashboard runs in Chromium kiosk mode so it always stays full screen on the Pi.
+
+## Thoughts
+
+**When Building:** This project started mostly because I wanted something cool running on my desk using a Raspberry Pi and the touchscreen. I’ve always liked messing around with Raspberry Pi projects, and this felt like a fun way to combine hardware and web development.
+
+The biggest challenge was getting everything to run smoothly on the Pi while keeping the setup simple. I also spent some time tweaking the UI so it looked good on a touchscreen and didn’t feel cluttered. Overall it ended up being a pretty fun project, and it’s something I’d like to expand later by adding things like calendar events, system stats, or maybe even smart home data.
