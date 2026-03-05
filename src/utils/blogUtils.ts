@@ -8,6 +8,7 @@ type Metadata = {
   image?: string
   recommended?: boolean
   author?: string
+  github?: string
 }
 
 function parseFrontmatter(fileContent: string) {

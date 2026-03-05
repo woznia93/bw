@@ -101,6 +101,19 @@ export default async function Blog({ params }: { params: Promise<{ slug: string 
         <CustomMDX source={post.content} />
       </article>
 
+      {post.metadata.github && (
+        <div className="mt-8 pt-8 border-t border-neutral-200 dark:border-neutral-700">
+          <a
+            href={post.metadata.github}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 text-neutral-700 dark:text-neutral-300 hover:text-neutral-900 dark:hover:text-neutral-100"
+          >
+            View on GitHub ↗
+          </a>
+        </div>
+      )}
+
       {/* Recommended Reads Section */}
       <div className="mt-16">
         <h2 className="font-semibold text-xl mb-4">Recommended Reads</h2>
