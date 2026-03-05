@@ -1,8 +1,10 @@
 ---
-title: "Carry Me: Valorant inspired leaderboard system that incorporates a risk-based Elo rating system"
+title: "Carry Me: Valorant inspired leaderboard system"
 publishedAt: "2025-02-09"
 summary: "A competitive matchmaking system featuring a dynamic risk-based Elo model where higher-ranked players can earn greater rewards by teaming with lower-ranked allies."
-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+---
+
+---
 
 Competitive ranking systems are a core part of multiplayer gaming, providing players with a sense of progress, accomplishment, and competitive challenge. Inspired by Valorant’s ranking ladder, this project introduces a twist on traditional Elo systems: a **risk-based rating system** where players can earn higher rewards by teaming with lower-ranked players. This adds a layer of strategic decision-making long before the match even begins.
 
@@ -12,9 +14,9 @@ This article explains how the system works and how it aims to make ranked progre
 
 Traditional Elo systems typically assign predictable win and loss point values. This system takes the concept further:
 
-* Higher-ranked players **gain more Elo for winning alongside weaker teammates**.
-* Losing to lower-ranked opponents results in **greater Elo penalties**.
-* The system calculates difficulty based on team averages and rank gaps.
+- Higher-ranked players **gain more Elo for winning alongside weaker teammates**.
+- Losing to lower-ranked opponents results in **greater Elo penalties**.
+- The system calculates difficulty based on team averages and rank gaps.
 
 This ensures that every match outcome is meaningful and that taking on harder challenges carries the potential for bigger payoff.
 
@@ -22,9 +24,9 @@ This ensures that every match outcome is meaningful and that taking on harder ch
 
 The real-time leaderboard showcases:
 
-* Player names
-* Ranks
-* Current Elo scores
+- Player names
+- Ranks
+- Current Elo scores
 
 After each match, scores are recalculated and reflected instantly. This creates a transparent, constantly shifting competitive environment where each game matters.
 
@@ -32,9 +34,9 @@ After each match, scores are recalculated and reflected instantly. This creates 
 
 Players are not restricted to narrow rank brackets. Instead:
 
-* Matches can be formed even when teammates have noticeable rank differences
-* Higher risk means **higher reward potential**
-* Matchmaking uses team Elo averages to evaluate difficulty
+- Matches can be formed even when teammates have noticeable rank differences
+- Higher risk means **higher reward potential**
+- Matchmaking uses team Elo averages to evaluate difficulty
 
 This flexibility encourages a more open matchmaking experience similar to Valorant, but enhanced through mathematical scaling.
 
@@ -42,15 +44,15 @@ This flexibility encourages a more open matchmaking experience similar to Valora
 
 The ranking system mirrors Valorant’s competitive structure:
 
-* Iron
-* Bronze
-* Silver
-* Gold
-* Platinum
-* Diamond
-* Ascended
-* Immortal
-* Radiant
+- Iron
+- Bronze
+- Silver
+- Gold
+- Platinum
+- Diamond
+- Ascended
+- Immortal
+- Radiant
 
 As players progress upward, the difficulty—and potential reward—scales alongside.
 
@@ -60,10 +62,10 @@ As players progress upward, the difficulty—and potential reward—scales along
 2. The matchmaking system evaluates relative skill using rank and Elo.
 3. A match takes place.
 4. Elo changes are calculated based on:
+   - Rank difference
+   - Team average Elo
+   - _(Optional)_ individual performance stats
 
-   * Rank difference
-   * Team average Elo
-   * *(Optional)* individual performance stats
 5. The leaderboard updates in real time.
 
 Players who take greater risks can rise faster—if they win.
@@ -72,9 +74,9 @@ Players who take greater risks can rise faster—if they win.
 
 This system is built with a modern full-stack architecture:
 
-* **Frontend:** React for interface and leaderboard display
-* **Backend:** Flask for matchmaking logic, Elo calculation, and APIs
-* **Database:** MongoDB for storing player profiles, match results, and rank history
+- **Frontend:** React for interface and leaderboard display
+- **Backend:** Flask for matchmaking logic, Elo calculation, and APIs
+- **Database:** MongoDB for storing player profiles, match results, and rank history
 
 ## Installation & Setup
 
@@ -103,10 +105,10 @@ Set your MongoDB connection string in the `.env` file.
 
 Possible next steps include:
 
-* More advanced matchmaking algorithms
-* Elo adjustments tied to individual performance
-* Seasonal leaderboards and rank resets
-* Discord integration for matchmaking and community play
+- More advanced matchmaking algorithms
+- Elo adjustments tied to individual performance
+- Seasonal leaderboards and rank resets
+- Discord integration for matchmaking and community play
 
 ## Conclusion
 
