@@ -8,7 +8,7 @@ const navItems = {
     name: 'about',
   },
   '/blog': {
-    name: 'blog',
+    name: 'projects',
   },
   '/resume2026.pdf': {
     name: 'resume',
