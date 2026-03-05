@@ -10,7 +10,7 @@ const navItems = {
   '/blog': {
     name: 'blog',
   },
-  '/bradyresume.pdf': {
+  '/resume2026.pdf': {
     name: 'resume',
   },
 }
