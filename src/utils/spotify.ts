@@ -22,7 +22,14 @@ export type Track = {
   durationMs: number
 }
 
-export type Play = Track & { playedAt: number }
+// playlistId is set when the play came from a playlist
+export type Play = Track & { playedAt: number; playlistId?: string }
+
+export type Playlist = {
+  name: string
+  image?: string
+  url: string
+}
 
 export type NowPlaying = {
   isPlaying: boolean
@@ -33,6 +40,7 @@ export type WeeklyStats = {
   minutes: number
   plays: number
   topTracks: (Track & { count: number })[]
+  topPlaylist?: Playlist & { count: number }
   // 'history' = every play stored in Redis, 'recent' = only Spotify's last 50 plays
   source: 'history' | 'recent'
 }
@@ -105,7 +113,29 @@ async function getRecentPlays(): Promise<Play[]> {
   return (data?.items ?? []).map((item: any) => ({
     ...toTrack(item.track),
     playedAt: new Date(item.played_at).getTime(),
+    playlistId:
+      item.context?.type === 'playlist'
+        ? item.context.uri.split(':').pop()
+        : undefined,
   }))
+}
+
+export async function getAllTimeTopTracks(limit = 5): Promise<Track[]> {
+  const data = await spotify(
+    `/me/top/tracks?time_range=long_term&limit=${limit}`
+  )
+  return (data?.items ?? []).map(toTrack)
+}
+
+async function getPlaylist(id: string): Promise<Playlist> {
+  const data = await spotify(
+    `/playlists/${id}?fields=name,images,external_urls`
+  )
+  return {
+    name: data.name,
+    image: data.images?.[0]?.url,
+    url: data.external_urls?.spotify,
+  }
 }
 
 export async function getNowPlaying(): Promise<NowPlaying | null> {
@@ -172,7 +202,13 @@ async function getWeekOfPlays(): Promise<{
       '+inf',
       'BYSCORE',
     ])
-    return { plays: members.map((member) => JSON.parse(member)), source: 'history' }
+    // played_at is unique per play, so drop any repeats saved with different metadata
+    const plays = new Map<number, Play>()
+    for (const member of members) {
+      const play: Play = JSON.parse(member)
+      plays.set(play.playedAt, play)
+    }
+    return { plays: Array.from(plays.values()), source: 'history' }
   }
 
   const plays = await getRecentPlays()
@@ -208,6 +244,31 @@ export async function getWeeklyStats(limit = 5): Promise<WeeklyStats> {
     minutes: Math.round(totalMs / 60000),
     plays: plays.length,
     topTracks,
+    topPlaylist: await getTopPlaylist(plays),
     source,
+  }
+}
+
+async function getTopPlaylist(
+  plays: Play[]
+): Promise<WeeklyStats['topPlaylist']> {
+  const counts = new Map<string, number>()
+  for (const play of plays) {
+    if (play.playlistId) {
+      counts.set(play.playlistId, (counts.get(play.playlistId) ?? 0) + 1)
+    }
+  }
+
+  const [top] = Array.from(counts).sort((a, b) => b[1] - a[1])
+  if (!top) {
+    return undefined
+  }
+
+  // Spotify's own editorial and algorithmic playlists can't be looked up through
+  // the API, so skip the card rather than show a nameless playlist
+  try {
+    return { ...(await getPlaylist(top[0])), count: top[1] }
+  } catch {
+    return undefined
   }
 }

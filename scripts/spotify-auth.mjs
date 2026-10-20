@@ -10,7 +10,12 @@ const clientId = process.env.SPOTIFY_CLIENT_ID
 const clientSecret = process.env.SPOTIFY_CLIENT_SECRET
 const port = 8888
 const redirectUri = `http://127.0.0.1:${port}/callback`
-const scopes = 'user-read-currently-playing user-read-recently-played'
+const scopes = [
+  'user-read-currently-playing',
+  'user-read-recently-played',
+  'user-top-read',
+  'playlist-read-private',
+].join(' ')
 
 if (!clientId || !clientSecret) {
   console.error('Set SPOTIFY_CLIENT_ID and SPOTIFY_CLIENT_SECRET first.')
