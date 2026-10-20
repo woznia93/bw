@@ -10,6 +10,9 @@ const navItems = {
   '/blog': {
     name: 'projects',
   },
+  '/music': {
+    name: 'music',
+  },
   '/wozresume.pdf': {
     name: 'resume',
   },

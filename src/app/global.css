@@ -148,3 +148,44 @@ table {
 .title {
   text-wrap: balance;
 }
+
+/* Animated bars next to "Now playing" on the music page */
+.equalizer {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 10px;
+}
+
+.equalizer span {
+  width: 2px;
+  height: 100%;
+  background-color: #1db954;
+  animation: equalize 1s ease-in-out infinite;
+  transform-origin: bottom;
+}
+
+.equalizer span:nth-child(2) {
+  animation-delay: -0.4s;
+}
+
+.equalizer span:nth-child(3) {
+  animation-delay: -0.7s;
+}
+
+@keyframes equalize {
+  0%,
+  100% {
+    transform: scaleY(0.3);
+  }
+  50% {
+    transform: scaleY(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .equalizer span {
+    animation: none;
+    transform: scaleY(0.7);
+  }
+}
