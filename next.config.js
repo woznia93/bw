@@ -8,6 +8,10 @@ const nextConfig = {
     pagesBufferLength: 5,
   },
   staticPageGenerationTimeout: 60,
+  images: {
+    // Spotify album art
+    remotePatterns: [{ protocol: 'https', hostname: 'i.scdn.co' }],
+  },
 }
 
 module.exports = nextConfig

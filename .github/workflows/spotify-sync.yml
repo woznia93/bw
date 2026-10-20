@@ -1,0 +1,25 @@
+name: Spotify sync
+
+# Spotify only keeps the last 50 plays, so save them regularly to build a full
+# week of listening history for the music page.
+on:
+  schedule:
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Save recent plays
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SITE_URL: ${{ vars.SITE_URL || 'https://bradywoz.com' }}
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET is not set, skipping"
+            exit 0
+          fi
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            "$SITE_URL/api/spotify/sync"
