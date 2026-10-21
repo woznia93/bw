@@ -1,4 +1,8 @@
-import { isSpotifyConfigured, syncPlays } from '@/utils/spotify'
+import {
+  isHistoryConfigured,
+  isSpotifyConfigured,
+  syncPlays,
+} from '@/utils/spotify'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,6 +15,12 @@ export async function GET(request: Request) {
   }
   if (!isSpotifyConfigured()) {
     return Response.json({ error: 'Spotify is not configured' }, { status: 503 })
+  }
+  if (!isHistoryConfigured()) {
+    return Response.json(
+      { error: 'Redis is not configured, so plays cannot be saved' },
+      { status: 503 }
+    )
   }
 
   try {
