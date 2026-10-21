@@ -93,6 +93,8 @@ That's enough for the page to work. Spotify's API only returns the 50 most recen
 4. **Create a free Upstash Redis database**, either at [upstash.com](https://upstash.com/) or from the Vercel Marketplace, and set `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`. The Vercel integration's `KV_REST_API_URL` and `KV_REST_API_TOKEN` work too.
 5. **Schedule syncing.** Pick a random string and set it as `CRON_SECRET` in Vercel and as a `CRON_SECRET` repository secret in GitHub (Settings → Secrets and variables → Actions). The `Spotify sync` workflow then saves recent plays every 30 minutes. Plays are also saved whenever the music page refreshes.
 
+   The workflow calls `https://bradywoz.com` by default. If the site redirects to another address (such as `https://www.bradywoz.com`), add a `SITE_URL` repository variable (the Variables tab next to Secrets) set to the final address, or the sync won't reach the site.
+
 ## Deployment
 
 The site is hosted on Vercel. See the [Next.js deployment docs](https://nextjs.org/docs/app/building-your-application/deploying) for details.
