@@ -20,6 +20,14 @@ jobs:
             echo "CRON_SECRET is not set, skipping"
             exit 0
           fi
-          curl --fail --silent --show-error \
+          status=$(curl --silent --show-error --output response.txt \
+            --write-out '%{http_code}' \
             -H "Authorization: Bearer $CRON_SECRET" \
-            "$SITE_URL/api/spotify/sync"
+            "$SITE_URL/api/spotify/sync")
+          cat response.txt
+          echo
+          if [ "$status" != "200" ]; then
+            # A 3xx usually means SITE_URL redirects (e.g. to www), which drops the secret
+            echo "::error::Sync returned HTTP $status from $SITE_URL. If it's a redirect, set the SITE_URL repository variable to the address the site redirects to."
+            exit 1
+          fi
