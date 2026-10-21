@@ -49,7 +49,7 @@ export function isSpotifyConfigured() {
   return Boolean(clientId && clientSecret && refreshToken)
 }
 
-function isHistoryConfigured() {
+export function isHistoryConfigured() {
   return Boolean(redisUrl && redisToken)
 }
 
@@ -165,18 +165,14 @@ async function redis(command: (string | number)[]) {
 // Spotify only remembers the last 50 plays, so each sync copies them into a Redis
 // sorted set (scored by play time) to build up a full week of history.
 export async function syncPlays() {
-  if (!isHistoryConfigured()) {
-    return { added: 0 }
-  }
-
   const plays = await getRecentPlays()
-  if (plays.length === 0) {
-    return { added: 0 }
-  }
 
-  // Identical members are ignored by ZADD, so re-syncing the same plays is a no-op
-  const args = plays.flatMap((play) => [play.playedAt, JSON.stringify(play)])
-  const added = await redis(['ZADD', HISTORY_KEY, ...args])
+  let added = 0
+  if (plays.length > 0) {
+    // Identical members are ignored by ZADD, so re-syncing the same plays is a no-op
+    const args = plays.flatMap((play) => [play.playedAt, JSON.stringify(play)])
+    added = await redis(['ZADD', HISTORY_KEY, ...args])
+  }
   // Keep a day of slack past the weekly window
   await redis([
     'ZREMRANGEBYSCORE',
@@ -184,7 +180,21 @@ export async function syncPlays() {
     '-inf',
     Date.now() - WEEK_MS - 24 * 60 * 60 * 1000,
   ])
-  return { added }
+
+  // Plays come back newest first
+  const latest = plays[0]
+  return {
+    added,
+    fetched: plays.length,
+    stored: await redis(['ZCARD', HISTORY_KEY]),
+    latest: latest
+      ? {
+          name: latest.name,
+          artist: latest.artist,
+          playedAt: new Date(latest.playedAt).toISOString(),
+        }
+      : null,
+  }
 }
 
 async function getWeekOfPlays(): Promise<{
