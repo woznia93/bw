@@ -23,6 +23,7 @@ src/
 │   │   └── posts/         # Project write-ups (.mdx)
 │   ├── music/             # Now playing and weekly Spotify stats
 │   ├── resume/            # On-site PDF viewer for the resume
+│   ├── playground/        # Neural network playground (in progress, hidden)
 │   ├── api/spotify/       # Now-playing and history sync endpoints
 │   ├── api/terminal/      # Project content the terminal loads when opened
 │   ├── og/                # Dynamic Open Graph image generation
@@ -31,6 +32,7 @@ src/
 │   └── terminal/          # Terminal window, launcher button and keyboard handling
 ├── data/terminal.ts       # Terminal content (about, skills, experience) and color themes
 ├── lib/terminal/          # Command parser, commands, virtual filesystem, tab completion
+├── lib/playground/        # Playground types, datasets and (soon) the network engine
 └── utils/
     ├── blogUtils.ts       # Reads and parses MDX posts
     └── spotify.ts         # Spotify API and listening history
@@ -79,6 +81,12 @@ Post content goes here.
 ```
 
 `title`, `publishedAt` and `summary` are required. `image`, `author`, `github` and `recommended` are optional.
+
+## Neural network playground (in progress)
+
+`/playground` will let visitors configure, train and inspect a small neural network in the browser. It's being built in ordered steps, tracked in [#13](https://github.com/woznia93/bw/issues/13), and stays hidden (not linked, `noindex`) until the last step. The design is in [`docs/playground.md`](docs/playground.md).
+
+Run the tests with `pnpm test`.
 
 ## Resume viewer
 

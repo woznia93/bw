@@ -6,7 +6,8 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "prepare": "husky"
+    "prepare": "husky",
+    "test": "vitest run"
   },
   "dependencies": {
     "@tailwindcss/postcss": "4.0.0-alpha.13",
@@ -36,6 +37,7 @@
   },
   "devDependencies": {
     "eslint": "^9.39.1",
-    "eslint-config-next": "15.5.2"
+    "eslint-config-next": "15.5.2",
+    "vitest": "3.2.4"
   }
 }
