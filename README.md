@@ -22,11 +22,12 @@ src/
 │   ├── blog/              # Projects list and individual project pages
 │   │   └── posts/         # Project write-ups (.mdx)
 │   ├── music/             # Now playing and weekly Spotify stats
+│   ├── resume/            # On-site PDF viewer for the resume
 │   ├── api/spotify/       # Now-playing and history sync endpoints
 │   ├── api/terminal/      # Project content the terminal loads when opened
 │   ├── og/                # Dynamic Open Graph image generation
 │   └── rss/               # RSS feed
-├── components/            # Nav, footer, MDX renderer, post list, now playing
+├── components/            # Nav, footer, MDX renderer, post list, now playing, resume viewer
 │   └── terminal/          # Terminal window, launcher button and keyboard handling
 ├── data/terminal.ts       # Terminal content (about, skills, experience) and color themes
 ├── lib/terminal/          # Command parser, commands, virtual filesystem, tab completion
@@ -78,6 +79,10 @@ Post content goes here.
 ```
 
 `title`, `publishedAt` and `summary` are required. `image`, `author`, `github` and `recommended` are optional.
+
+## Resume viewer
+
+The `resume` tab opens `/resume`, which shows `public/wozresume.pdf` inside the site (rendered with [pdf.js](https://mozilla.github.io/pdf.js/)) instead of the browser's built-in PDF page. Text can be selected, the links in the PDF are clickable, and there are zoom and download buttons. pdf.js only loads on that page. To update the resume, replace the PDF in `public/` (or point `LINKS.resume` in `src/data/terminal.ts` at a different file). The raw file is still available at `/wozresume.pdf`.
 
 ## Interactive terminal
 

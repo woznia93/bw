@@ -12,7 +12,9 @@ export const LINKS = {
   github: 'https://github.com/woznia93',
   linkedin: 'https://www.linkedin.com/in/bradywozniak/',
   source: 'https://github.com/woznia93/bw',
+  // The raw PDF, and the page on this site that shows it
   resume: '/wozresume.pdf',
+  resumePage: '/resume',
 }
 
 export const ABOUT = [

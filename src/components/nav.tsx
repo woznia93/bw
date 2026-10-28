@@ -13,7 +13,7 @@ const navItems = {
   '/music': {
     name: 'music',
   },
-  '/wozresume.pdf': {
+  '/resume': {
     name: 'resume',
   },
 }

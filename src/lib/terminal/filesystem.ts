@@ -65,7 +65,7 @@ export function buildFilesystem(projects: Project[]): FsNode {
           `Tools: ${TOOLS.join(', ')}`,
         ].join('\n')
       ),
-      'experience.md': file(experience, LINKS.resume),
+      'experience.md': file(experience, LINKS.resumePage),
       'contact.md': file(
         [
           `${PROFILE.name}`,
@@ -81,8 +81,8 @@ export function buildFilesystem(projects: Project[]): FsNode {
         ),
       },
       'resume.pdf': file(
-        "Binary file. Type 'resume' to open it in a new tab.",
-        LINKS.resume
+        "Binary file. Type 'resume' to view it.",
+        LINKS.resumePage
       ),
     },
   }
