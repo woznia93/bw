@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { THEMES } from '@/data/terminal'
 import { Prompt, TerminalOutput } from './TerminalOutput'
+import { useDraggable } from './useDraggable'
 import { useTerminal } from './useTerminal'
 
 const SUGGESTIONS = ['projects', 'neofetch', 'skills', 'whoami', 'help']
@@ -17,6 +18,7 @@ export default function Terminal({
 }) {
   const router = useRouter()
   const [expanded, setExpanded] = useState(false)
+  const windowRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const returnFocus = useRef<HTMLElement | null>(null)
@@ -33,6 +35,7 @@ export default function Terminal({
     onNavigate,
     onClose,
   })
+  const { offset, dragging, reset, handlers } = useDraggable(windowRef)
 
   // Focus the prompt on open, hand focus back and unlock page scroll on close
   useEffect(() => {
@@ -69,19 +72,36 @@ export default function Terminal({
       }}
     >
       <div
+        ref={windowRef}
         role="dialog"
         aria-modal="true"
         aria-label="Interactive terminal"
-        className={`term-window${expanded ? ' term-window-full' : ''}`}
-        style={THEMES[theme].vars as React.CSSProperties}
+        className={`term-window${expanded ? ' term-window-full' : ''}${dragging ? ' term-dragging' : ''}`}
+        style={
+          {
+            ...THEMES[theme].vars,
+            // Full screen and phones ignore this in CSS
+            translate: offset.x || offset.y ? `${offset.x}px ${offset.y}px` : undefined,
+          } as React.CSSProperties
+        }
       >
-        <div className="term-bar">
+        <div
+          className={`term-bar${expanded ? '' : ' term-bar-drag'}`}
+          {...(expanded ? {} : handlers)}
+          // Keep the cursor in the prompt so typing still works after moving the window
+          onMouseDown={(event) => event.preventDefault()}
+          onDoubleClick={(event) => {
+            if (!(event.target as HTMLElement).closest('button')) reset()
+          }}
+        >
           <span className="term-dots" aria-hidden="true">
             <i />
             <i />
             <i />
           </span>
-          <span className="term-title">brady@portfolio: {path}</span>
+          <span className="term-title" title="Drag to move, double-click to re-center">
+            brady@portfolio: {path}
+          </span>
           <button
             type="button"
             className="term-button term-expand"

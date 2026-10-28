@@ -86,7 +86,7 @@ The `resume` tab opens `/resume`, which shows `public/wozresume.pdf` inside the 
 
 ## Interactive terminal
 
-Press `Ctrl+K` (or `Cmd+K`, or `~`) anywhere on the site, or click the `>_` button in the bottom-right corner, to open a terminal for exploring the portfolio. It's a second way to navigate, so the normal site works exactly as before. It opens as a centered window with an option to expand it, and full screen on phones.
+Press `Ctrl+K` (or `Cmd+K`, or `~`) anywhere on the site, or click the `>_` button in the bottom-right corner, to open a terminal for exploring the portfolio. It's a second way to navigate, so the normal site works exactly as before. It opens as a centered window that can be dragged by its title bar (double-click the bar to re-center it) or expanded to full screen, and it's full screen on phones.
 
 Try `help`, `projects`, `neofetch`, `ls`, `cd projects`, `cat about.md`, `tree`, `grep CUDA`, `open <project>`, `resume` and `theme matrix`. Tab completes commands and paths, the up and down arrows browse history, `Ctrl+L` clears the screen and `Esc` closes it.
 

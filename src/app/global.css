@@ -254,6 +254,7 @@ table {
 }
 
 .term-window-full {
+  translate: none !important;
   width: 100%;
   height: 100dvh;
   border-radius: 0;
@@ -265,6 +266,7 @@ table {
     padding: 0;
   }
   .term-window {
+    translate: none !important;
     width: 100%;
     height: 100dvh;
     border-radius: 0;
@@ -277,12 +279,33 @@ table {
 }
 
 .term-bar {
+  touch-action: none;
+  user-select: none;
   display: flex;
   align-items: center;
   gap: 0.5rem;
   padding: 0.5rem 0.75rem;
   background: var(--t-bar);
   border-bottom: 1px solid var(--t-border);
+}
+
+.term-bar-drag {
+  cursor: grab;
+}
+
+.term-dragging .term-bar-drag {
+  cursor: grabbing;
+}
+
+.term-dragging {
+  user-select: none;
+}
+
+@media (max-width: 640px) {
+  .term-bar-drag,
+  .term-dragging .term-bar-drag {
+    cursor: default;
+  }
 }
 
 .term-dots {
