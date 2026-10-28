@@ -77,7 +77,7 @@ Post content goes here.
 
 ## Music page setup
 
-The `/music` page shows what I'm currently playing; minutes listened, top songs and most played playlist for the past week; and my all-time top songs. It needs a few environment variables (see `.env.example`). Put them in `.env.local` for local development and in the Vercel project settings for production.
+The `/music` page shows what I'm currently playing; minutes listened, top songs and most played playlist for the current week (Sunday 12 am to Sunday 12 am, in `SPOTIFY_TIMEZONE`, default `America/New_York`); and my all-time top songs. It needs a few environment variables (see `.env.example`). Put them in `.env.local` for local development and in the Vercel project settings for production.
 
 1. **Create a Spotify app** at the [Spotify developer dashboard](https://developer.spotify.com/dashboard). Add `http://127.0.0.1:8888/callback` as a Redirect URI and select the Web API.
 2. **Get a refresh token** by running the helper script and opening the link it prints:
