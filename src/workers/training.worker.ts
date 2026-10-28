@@ -12,10 +12,16 @@ const scope = self as unknown as {
   onmessage: ((event: MessageEvent<TrainerCommand>) => void) | null
 }
 
+function transferables(event: TrainerEvent): Transferable[] {
+  if (event.type !== 'snapshot' || !event.evaluation) return []
+  const { grid, parameters } = event.evaluation
+  return [grid.buffer, ...parameters.map((values) => values.buffer)]
+}
+
 const session = new TrainingSession(
   new ReferenceEngine(),
-  // The grid is handed over rather than copied
-  (event) => scope.postMessage(event, event.type === 'snapshot' && event.grid ? [event.grid.buffer] : []),
+  // The arrays are handed over rather than copied
+  (event) => scope.postMessage(event, transferables(event)),
   {
     now: () => performance.now(),
     setTimeout: (callback, ms) => setTimeout(callback, ms),

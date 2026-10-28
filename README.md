@@ -87,7 +87,7 @@ Post content goes here.
 
 `/playground` will let visitors configure, train and inspect a small neural network in the browser. It's being built in ordered steps, tracked in [#13](https://github.com/woznia93/bw/issues/13), and stays hidden (not linked, `noindex`) until the last step. The design is in [`docs/playground.md`](docs/playground.md).
 
-The page draws the network's decision boundary (its predictions on a 64 x 64 grid, with a contour line where it switches class) and a loss curve while it trains. Run the tests with `pnpm test`. The playground's TypeScript engine (`src/lib/playground/`) follows the C++ engine in [gpu_nn_framework](https://github.com/woznia93/gpu_nn_framework) and is checked against numbers produced by the real C++ code (`cpp/golden/`) as well as against finite differences.
+The page draws the network's decision boundary (its predictions on a 64 x 64 grid, with a contour line where it switches class), a loss curve (training and held-out test), accuracy on both, gradient norms, and a diagram of the weights while it trains. You can choose ReLU, Tanh or Sigmoid, SGD, SGD with momentum or Adam, and a reproducible random seed. Run the tests with `pnpm test`. The playground's TypeScript engine (`src/lib/playground/`) follows the C++ engine in [gpu_nn_framework](https://github.com/woznia93/gpu_nn_framework) and is checked against numbers produced by the real C++ code (`cpp/golden/`) as well as against finite differences.
 
 ## Resume viewer
 

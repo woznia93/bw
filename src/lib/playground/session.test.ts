@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { DATASETS } from './datasets'
 import { ReferenceEngine } from './engine'
 import { gridInputs } from './grid'
+import { binaryCrossEntropy } from './metrics'
 import type { TrainerCommand, TrainerEvent } from './protocol'
 import {
   GRID_MS,
@@ -51,8 +52,9 @@ function fakeClock() {
 
 const TEST_GRID = 8
 
-const config: NetworkConfig = { hidden: [8], activation: 'tanh', learningRate: 0.5, seed: 1 }
+const config: NetworkConfig = { hidden: [8], activation: 'tanh', optimizer: 'sgd', learningRate: 0.5, seed: 1 }
 const points = DATASETS.xor.generate(100, 0.1, 1)
+const testPoints = DATASETS.xor.generate(100, 0.1, 777)
 
 function setup(engine: NetworkEngine = new ReferenceEngine(), gridSize = TEST_GRID) {
   const clock = fakeClock()
@@ -65,7 +67,7 @@ function setup(engine: NetworkEngine = new ReferenceEngine(), gridSize = TEST_GR
   return { clock, events, send, snapshots, errors, last }
 }
 
-const configure: TrainerCommand = { type: 'configure', config, points }
+const configure: TrainerCommand = { type: 'configure', config, points, testPoints }
 
 // The parts of a snapshot most tests care about
 const brief = (snapshot: { status: string; step: number; loss: number | null }) => ({
@@ -105,7 +107,7 @@ describe('configure', () => {
     const { send, errors } = setup()
     send({ ...configure, config: { ...config, learningRate: -1 } })
     expect(errors()[0].message).toMatch(/learning rate/)
-    send({ ...configure, points: [] })
+    send({ ...configure, points: [], testPoints: [] })
     expect(errors()[1].message).toMatch(/no points/)
     // and is not usable until set up properly
     send({ type: 'step' })
@@ -347,15 +349,19 @@ describe('when training goes wrong', () => {
 
 describe('what each snapshot carries', () => {
   type Snapshot = Extract<TrainerEvent, { type: 'snapshot' }>
-  const gridOf = (snapshot: Snapshot) => snapshot.grid!
+  const evaluationOf = (snapshot: Snapshot) => snapshot.evaluation!
+  const labelsOf = (pts: typeof points) => pts.map((p) => p.label)
+  const inputsOf = (pts: typeof points) => Float32Array.from(pts.flatMap((p) => [p.x, p.y]))
 
   it('has the decision boundary and accuracy straight after configuring', () => {
     const { send, last } = setup()
     send(configure)
-    expect(last().grid).toBeInstanceOf(Float32Array)
-    expect(last().grid).toHaveLength(TEST_GRID * TEST_GRID)
-    expect(last().accuracy).toBeGreaterThanOrEqual(0)
-    expect(last().accuracy).toBeLessThanOrEqual(1)
+    const evaluation = evaluationOf(last())
+    expect(evaluation.grid).toBeInstanceOf(Float32Array)
+    expect(evaluation.grid).toHaveLength(TEST_GRID * TEST_GRID)
+    expect(evaluation.trainAccuracy).toBeGreaterThanOrEqual(0)
+    expect(evaluation.trainAccuracy).toBeLessThanOrEqual(1)
+    expect(evaluation.gradientNorms).toBeNull()
     expect(last().losses).toEqual([])
   })
 
@@ -365,26 +371,65 @@ describe('what each snapshot carries', () => {
     send(configure)
     send({ type: 'step' })
     send({ type: 'step' })
-    expect(Array.from(gridOf(last()))).toEqual(Array.from(engine.predict(gridInputs(TEST_GRID))))
+    expect(Array.from(evaluationOf(last()).grid)).toEqual(Array.from(engine.predict(gridInputs(TEST_GRID))))
   })
 
-  it('accuracy is the fraction of training points the network gets right', () => {
+  it('train accuracy is the fraction of training points the network gets right', () => {
     const engine = new ReferenceEngine()
     const { send, last } = setup(engine)
     send(configure)
     for (let i = 0; i < 60; i++) send({ type: 'step' })
-    const predictions = engine.predict(Float32Array.from(points.flatMap((p) => [p.x, p.y])))
+    const predictions = engine.predict(inputsOf(points))
     const expected = points.filter((p, i) => (predictions[i] > 0.5 ? 1 : 0) === p.label).length / points.length
-    expect(last().accuracy).toBe(expected)
+    expect(evaluationOf(last()).trainAccuracy).toBe(expected)
   })
 
   it('accuracy improves as the network learns', () => {
     const { send, last } = setup()
     send(configure)
-    const before = last().accuracy!
+    const before = evaluationOf(last()).trainAccuracy
     for (let i = 0; i < 600; i++) send({ type: 'step' })
-    expect(last().accuracy!).toBeGreaterThan(before)
-    expect(last().accuracy!).toBeGreaterThan(0.9)
+    expect(evaluationOf(last()).trainAccuracy).toBeGreaterThan(before)
+    expect(evaluationOf(last()).trainAccuracy).toBeGreaterThan(0.9)
+  })
+
+  it('measures the held-out test points separately and never trains on them', () => {
+    const engine = new ReferenceEngine()
+    const { send, last } = setup(engine)
+    send(configure)
+    for (let i = 0; i < 300; i++) send({ type: 'step' })
+    const { testAccuracy, testLoss } = evaluationOf(last())
+    const predictions = engine.predict(inputsOf(testPoints))
+    expect(testAccuracy).toBe(testPoints.filter((p, i) => (predictions[i] > 0.5 ? 1 : 0) === p.label).length / testPoints.length)
+    expect(testLoss).toBeCloseTo(binaryCrossEntropy(predictions, labelsOf(testPoints)), 10)
+    expect(testAccuracy).toBeGreaterThan(0.8)
+    // Training on the test points would give different losses than training on the
+    // training points alone
+    expect(last().loss).toBe(referenceLosses(300)[299])
+  })
+
+  it('has no test numbers without test points', () => {
+    const { send, last } = setup()
+    send({ ...configure, testPoints: [] } as TrainerCommand)
+    expect(evaluationOf(last()).testAccuracy).toBeNull()
+    expect(evaluationOf(last()).testLoss).toBeNull()
+  })
+
+  it('reports the weights, and one gradient norm per layer after the first step', () => {
+    const engine = new ReferenceEngine()
+    const { send, last } = setup(engine)
+    send(configure)
+    expect(evaluationOf(last()).parameters.map((p) => p.length)).toEqual([16, 8, 8, 1])
+    expect(evaluationOf(last()).gradientNorms).toBeNull()
+    send({ type: 'step' })
+    const { gradientNorms, parameters } = evaluationOf(last())
+    expect(parameters).toEqual(engine.getParameterValues())
+    // Two Linear layers: [2 -> 8] and [8 -> 1]
+    expect(gradientNorms).toHaveLength(2)
+    const grads = engine.getGradientValues()
+    expect(gradientNorms![0]).toBeCloseTo(Math.hypot(...Array.from(grads[0]), ...Array.from(grads[1])), 6)
+    expect(gradientNorms![1]).toBeCloseTo(Math.hypot(...Array.from(grads[2]), ...Array.from(grads[3])), 6)
+    expect(gradientNorms!.every((n) => n > 0)).toBe(true)
   })
 
   it('reports the loss for every step since the last snapshot, in order', () => {
@@ -442,7 +487,7 @@ describe('what each snapshot carries', () => {
     expect(last().run).not.toBe(second)
   })
 
-  it('refreshes the grid no more often than it is due while running', () => {
+  it('refreshes the evaluation no more often than it is due while running', () => {
     const { send, clock, snapshots } = setup()
     send(configure)
     send({ type: 'setSpeed', speed: 'fast' })
@@ -450,37 +495,32 @@ describe('what each snapshot carries', () => {
     const before = snapshots().length
     clock.advance(1000)
     const running = snapshots().slice(before)
-    const withGrid = running.filter((snapshot) => snapshot.grid !== null).length
-    expect(withGrid).toBeLessThanOrEqual(Math.ceil(1000 / GRID_MS) + 1)
-    expect(withGrid).toBeGreaterThan(3)
-    expect(running.length).toBeGreaterThan(withGrid)
+    const withEvaluation = running.filter((snapshot) => snapshot.evaluation !== null).length
+    expect(withEvaluation).toBeLessThanOrEqual(Math.ceil(1000 / GRID_MS) + 1)
+    expect(withEvaluation).toBeGreaterThan(3)
+    expect(running.length).toBeGreaterThan(withEvaluation)
   })
 
-  it('always refreshes the grid when the visitor pauses, steps or resets', () => {
+  it('always refreshes the evaluation when the visitor pauses, steps or resets', () => {
     const { send, clock, last } = setup()
     send(configure)
     send({ type: 'start' })
     clock.advance(60)
     send({ type: 'pause' })
-    expect(last().grid).not.toBeNull()
+    expect(last().evaluation).not.toBeNull()
     send({ type: 'step' })
-    expect(last().grid).not.toBeNull()
+    expect(last().evaluation).not.toBeNull()
     send({ type: 'reset' })
-    expect(last().grid).not.toBeNull()
+    expect(last().evaluation).not.toBeNull()
   })
 
-  it('refreshes the grid less often for a network that is slow to evaluate', () => {
-    // Each prediction over the grid costs 150 ms of fake time
+  it('refreshes the evaluation less often for a network that is slow to evaluate', () => {
+    // Make each evaluation look like it takes 150 ms of fake time
     const engine = new ReferenceEngine()
     const clock = fakeClock()
     const original = engine.predict.bind(engine)
-    let slow = false
-    engine.predict = (inputs) => {
-      if (slow && inputs.length === TEST_GRID * TEST_GRID * 2) clock.advance(0)
-      return original(inputs)
-    }
-    const events: TrainerEvent[] = []
     let extra = 0
+    const events: TrainerEvent[] = []
     const session = new TrainingSession(engine, (event) => events.push(event), {
       ...clock.scheduler,
       now: () => clock.scheduler.now() + extra,
@@ -488,21 +528,19 @@ describe('what each snapshot carries', () => {
     session.handle(configure)
     session.handle({ type: 'setSpeed', speed: 'fast' })
     session.handle({ type: 'start' })
-    slow = true
-    // Make the grid look expensive: every call to now() after a grid call sees 150 ms more
-    const gridCalls = () => events.filter((e) => e.type === 'snapshot' && e.grid).length
     engine.predict = (inputs) => {
       if (inputs.length === TEST_GRID * TEST_GRID * 2) extra += 150
       return original(inputs)
     }
-    const before = gridCalls()
+    const evaluations = () => events.filter((e) => e.type === 'snapshot' && e.evaluation).length
+    const before = evaluations()
     clock.advance(3000)
-    // Interval grows to ~5 x 150 ms = 750 ms, so about 4 grids in 3 s rather than 30
-    expect(gridCalls() - before).toBeLessThanOrEqual(6)
-    expect(gridCalls() - before).toBeGreaterThanOrEqual(1)
+    // The interval grows to about 5 x 150 ms = 750 ms, so about 4 in 3 s rather than 30
+    expect(evaluations() - before).toBeLessThanOrEqual(6)
+    expect(evaluations() - before).toBeGreaterThanOrEqual(1)
   })
 
-  it('has no grid or accuracy before anything is configured', () => {
+  it('has no evaluation before anything is configured', () => {
     const { send, snapshots, errors } = setup()
     send({ type: 'start' })
     expect(errors()).toHaveLength(1)

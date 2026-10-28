@@ -3,7 +3,7 @@ import { DATASETS } from './datasets'
 import { MAX_HIDDEN_LAYERS, MAX_NEURONS, ReferenceEngine } from './engine'
 import type { NetworkConfig, Point } from './types'
 
-const base: NetworkConfig = { hidden: [8], activation: 'tanh', learningRate: 0.5, seed: 1 }
+const base: NetworkConfig = { hidden: [8], activation: 'tanh', optimizer: 'sgd', learningRate: 0.5, seed: 1 }
 
 function setup(config: Partial<NetworkConfig> = {}, points = DATASETS.xor.generate(200, 0.1, 1)) {
   const engine = new ReferenceEngine()
@@ -41,6 +41,47 @@ describe('learning', () => {
     expect(accuracy(engine, points)).toBeGreaterThan(0.95)
     expect(before).toBeLessThan(0.9)
   })
+
+  it.each([
+    ['sgd', 0.5],
+    ['momentum', 0.1],
+    ['adam', 0.05],
+  ] as const)('learns XOR with the %s optimizer', (optimizer, learningRate) => {
+    const { engine, points } = setup({ optimizer, learningRate })
+    const losses = train(engine, 800)
+    expect(losses[losses.length - 1]).toBeLessThan(0.1)
+    expect(accuracy(engine, points)).toBeGreaterThan(0.95)
+  })
+
+  it('learns with sigmoid hidden layers too', () => {
+    const points = DATASETS.circles.generate(200, 0.1, 1)
+    const { engine } = setup({ activation: 'sigmoid', optimizer: 'adam', learningRate: 0.05 }, points)
+    train(engine, 800)
+    expect(accuracy(engine, points)).toBeGreaterThan(0.95)
+  })
+
+  it('the optimizers take different paths from the same start', () => {
+    const runs = (['sgd', 'momentum', 'adam'] as const).map((optimizer) => {
+      const { engine } = setup({ optimizer, learningRate: 0.1 })
+      return train(engine, 20)
+    })
+    expect(runs[0]).not.toEqual(runs[1])
+    expect(runs[1]).not.toEqual(runs[2])
+    expect(runs[0]).not.toEqual(runs[2])
+    // but they all begin at the same loss, since the weights are the same
+    expect(runs[0][0]).toBe(runs[1][0])
+    expect(runs[1][0]).toBe(runs[2][0])
+  })
+
+  it.each(['momentum', 'adam'] as const)(
+    'reset also clears the %s optimizer state, so a rerun is identical',
+    (optimizer) => {
+      const { engine } = setup({ optimizer, learningRate: 0.05 })
+      const firstRun = train(engine, 40)
+      engine.reset()
+      expect(train(engine, 40)).toEqual(firstRun)
+    }
+  )
 
   it('cannot learn XOR without a hidden layer, because no straight line separates it', () => {
     const { engine, points } = setup({ hidden: [] })
@@ -151,7 +192,24 @@ describe('seeds, reset and repeatability', () => {
   })
 })
 
-describe('parameters', () => {
+describe('parameters and gradients', () => {
+  it('getParameterValues and getGradientValues return copies in layer order', () => {
+    const { engine } = setup({ hidden: [4] })
+    engine.trainStep()
+    const parameters = engine.getParameterValues()
+    const gradients = engine.getGradientValues()
+    // weight [4, 2], bias [4], weight [1, 4], bias [1]
+    expect(parameters.map((p) => p.length)).toEqual([8, 4, 4, 1])
+    expect(gradients.map((g) => g.length)).toEqual([8, 4, 4, 1])
+    parameters[0][0] = 99
+    expect(engine.getParameterValues()[0][0]).not.toBe(99)
+  })
+
+  it('gradients are zero before the first step', () => {
+    const { engine } = setup()
+    expect(engine.getGradientValues().every((g) => g.every((v) => v === 0))).toBe(true)
+  })
+
   it('can be read and written as plain arrays', () => {
     const { engine, points } = setup()
     const saved = engine.getParameterValues()
@@ -197,7 +255,8 @@ describe('errors', () => {
     [{ hidden: [2.5] }, /neurons/],
     [{ hidden: [MAX_NEURONS + 1] }, /neurons/],
     [{ hidden: new Array(MAX_HIDDEN_LAYERS + 1).fill(2) }, /at most/],
-    [{ activation: 'sigmoid' as never }, /activation/],
+    [{ activation: 'softmax' as never }, /activation/],
+    [{ optimizer: 'rmsprop' as never }, /optimizer/],
     [{ seed: Infinity }, /seed/],
   ])('rejects the configuration %j', (change, message) => {
     expect(() => new ReferenceEngine().initialize({ ...base, ...change })).toThrow(message)

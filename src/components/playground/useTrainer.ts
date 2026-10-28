@@ -3,7 +3,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { appendHistory } from '@/lib/playground/history'
 import type { LossPoint } from '@/lib/playground/history'
-import type { Speed, TrainerCommand, TrainerEvent, TrainerStatus } from '@/lib/playground/protocol'
+import type {
+  Evaluation,
+  Speed,
+  TrainerCommand,
+  TrainerEvent,
+  TrainerStatus,
+} from '@/lib/playground/protocol'
 import type { NetworkConfig, Point } from '@/lib/playground/types'
 
 // How many points of loss history the page keeps; older ones are thinned out
@@ -20,10 +26,12 @@ export type Trainer = ReturnType<typeof useTrainer>
 export function useTrainer({
   config,
   points,
+  testPoints,
   speed,
 }: {
   config: NetworkConfig
   points: Point[]
+  testPoints: Point[]
   speed: Speed
 }) {
   const workerRef = useRef<Worker | null>(null)
@@ -32,17 +40,18 @@ export function useTrainer({
   const [status, setStatus] = useState<TrainerStatus>('paused')
   const [step, setStep] = useState(0)
   const [loss, setLoss] = useState<number | null>(null)
-  const [accuracy, setAccuracy] = useState<number | null>(null)
-  const [grid, setGrid] = useState<Float32Array | null>(null)
+  // The latest evaluation (boundary, accuracies, weights), which keeps showing until a newer one arrives
+  const [evaluation, setEvaluation] = useState<Evaluation | null>(null)
   const [history, setHistory] = useState<LossPoint[]>([])
+  const [testHistory, setTestHistory] = useState<LossPoint[]>([])
   const [engine, setEngine] = useState<{ label: string; note: string } | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
   // The worker's startup handshake needs the latest values, not the ones from
   // when the effect was created
   const run = useRef(0)
-  const latest = useRef({ config, points, speed })
-  latest.current = { config, points, speed }
+  const latest = useRef({ config, points, testPoints, speed })
+  latest.current = { config, points, testPoints, speed }
 
   const send = useCallback((command: TrainerCommand) => {
     workerRef.current?.postMessage(command)
@@ -75,14 +84,22 @@ export function useTrainer({
         setStatus(data.status)
         setStep(data.step)
         setLoss(data.loss)
-        setAccuracy(data.accuracy)
-        if (data.grid) setGrid(data.grid)
-        // A new run clears the loss curve; otherwise the new points are added to it
-        if (data.run !== run.current) {
-          run.current = data.run
-          setHistory(data.losses)
-        } else if (data.losses.length > 0) {
+        const newRun = data.run !== run.current
+        run.current = data.run
+        if (data.evaluation) setEvaluation(data.evaluation)
+        // A new run clears the loss curves; otherwise the new points are added to them
+        if (newRun) setHistory(data.losses)
+        else if (data.losses.length > 0) {
           setHistory((current) => appendHistory(current, data.losses, MAX_HISTORY))
+        }
+        const testLoss = data.evaluation?.testLoss ?? null
+        if (newRun) setTestHistory([])
+        else if (testLoss !== null && data.step > 0) {
+          setTestHistory((current) =>
+            current[current.length - 1]?.step === data.step
+              ? current
+              : appendHistory(current, [{ step: data.step, loss: testLoss }], MAX_HISTORY)
+          )
         }
       } else if (data.type === 'error') {
         setMessage(data.message)
@@ -101,12 +118,17 @@ export function useTrainer({
   }, [attempt])
 
   // A new network whenever its shape, activation, seed or the data change
-  const structure = JSON.stringify([config.hidden, config.activation, config.seed])
+  const structure = JSON.stringify([config.hidden, config.activation, config.optimizer, config.seed])
   useEffect(() => {
     if (phase !== 'ready') return
     setMessage(null)
-    send({ type: 'configure', config: latest.current.config, points })
-  }, [phase, structure, points, send])
+    send({
+      type: 'configure',
+      config: latest.current.config,
+      points,
+      testPoints: latest.current.testPoints,
+    })
+  }, [phase, structure, points, testPoints, send])
 
   useEffect(() => {
     if (phase === 'ready') send({ type: 'setLearningRate', learningRate: config.learningRate })
@@ -121,9 +143,9 @@ export function useTrainer({
     status,
     step,
     loss,
-    accuracy,
-    grid,
+    evaluation,
     history,
+    testHistory,
     engine,
     message,
     dismissMessage: () => setMessage(null),

@@ -1,19 +1,37 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { MAX_HIDDEN_LAYERS, MAX_NEURONS } from '@/lib/playground/engine'
-import type { Activation } from '@/lib/playground/types'
+import type { Activation, Optimizer } from '@/lib/playground/types'
+import { RadioGroup } from './RadioGroup'
 import { buttonClass } from './TrainingControls'
 
 export const MIN_LEARNING_RATE_EXPONENT = -3
 export const MAX_LEARNING_RATE_EXPONENT = 0.5
+export const MAX_SEED = 999999
 
 // The slider is on a log scale: its value is the exponent of the learning rate
 export const learningRateFromExponent = (exponent: number) =>
   Number((10 ** exponent).toPrecision(2))
 
+// A learning rate that works well for each optimizer; they aren't interchangeable
+// (Adam takes much smaller steps than plain SGD)
+export const DEFAULT_LEARNING_RATE: Record<Optimizer, number> = {
+  sgd: 0.5,
+  momentum: 0.1,
+  adam: 0.05,
+}
+
 const ACTIVATIONS: { value: Activation; label: string }[] = [
   { value: 'relu', label: 'ReLU' },
   { value: 'tanh', label: 'Tanh' },
+  { value: 'sigmoid', label: 'Sigmoid' },
+]
+
+const OPTIMIZERS: { value: Optimizer; label: string }[] = [
+  { value: 'sgd', label: 'SGD' },
+  { value: 'momentum', label: 'Momentum' },
+  { value: 'adam', label: 'Adam' },
 ]
 
 function Stepper({
@@ -33,13 +51,14 @@ function Stepper({
   decreaseLabel: string
   increaseLabel: string
 }) {
+  const small = `${buttonClass} h-8 w-8 px-0 py-0`
   return (
     <div className="flex items-center justify-between gap-2 text-sm">
       <span className="text-neutral-600 dark:text-neutral-400">{label}</span>
       <div className="flex items-center gap-2">
         <button
           type="button"
-          className={`${buttonClass} h-7 w-7 px-0 py-0`}
+          className={small}
           aria-label={decreaseLabel}
           disabled={value <= min}
           onClick={() => onChange(value - 1)}
@@ -51,7 +70,7 @@ function Stepper({
         </span>
         <button
           type="button"
-          className={`${buttonClass} h-7 w-7 px-0 py-0`}
+          className={small}
           aria-label={increaseLabel}
           disabled={value >= max}
           onClick={() => onChange(value + 1)}
@@ -63,21 +82,78 @@ function Stepper({
   )
 }
 
+// A whole number from 0 to MAX_SEED. Typing is kept as text so that it can be
+// edited freely, and only a valid number is passed on.
+function SeedField({ seed, onChange }: { seed: number; onChange: (seed: number) => void }) {
+  const [text, setText] = useState(String(seed))
+  useEffect(() => setText(String(seed)), [seed])
+
+  const commit = (value: string) => {
+    const parsed = Number(value)
+    if (value.trim() !== '' && Number.isInteger(parsed) && parsed >= 0 && parsed <= MAX_SEED) {
+      onChange(parsed)
+    }
+  }
+
+  return (
+    <div className="space-y-1">
+      <label htmlFor="seed" className="block text-sm text-neutral-600 dark:text-neutral-400">
+        Random seed
+      </label>
+      <div className="flex items-center gap-2">
+        <input
+          id="seed"
+          type="text"
+          inputMode="numeric"
+          autoComplete="off"
+          value={text}
+          aria-describedby="seed-hint"
+          aria-invalid={text !== String(seed)}
+          onChange={(event) => {
+            setText(event.target.value)
+            commit(event.target.value)
+          }}
+          onBlur={() => setText(String(seed))}
+          className="w-24 rounded-md border border-neutral-200 bg-transparent px-2 py-1.5 text-sm tabular-nums dark:border-neutral-800"
+        />
+        <button
+          type="button"
+          className={buttonClass}
+          onClick={() => onChange(Math.floor(Math.random() * (MAX_SEED + 1)))}
+        >
+          Randomize
+        </button>
+      </div>
+      <p id="seed-hint" className="text-xs text-neutral-600 dark:text-neutral-400">
+        The same seed always gives the same starting weights. Whole numbers from 0 to {MAX_SEED.toLocaleString('en-US')}.
+      </p>
+    </div>
+  )
+}
+
 export function NetworkEditor({
   hidden,
   onHiddenChange,
   activation,
   onActivationChange,
+  optimizer,
+  onOptimizerChange,
   learningRateExponent,
   onLearningRateExponentChange,
+  seed,
+  onSeedChange,
   engine,
 }: {
   hidden: number[]
   onHiddenChange: (hidden: number[]) => void
   activation: Activation
   onActivationChange: (activation: Activation) => void
+  optimizer: Optimizer
+  onOptimizerChange: (optimizer: Optimizer) => void
   learningRateExponent: number
   onLearningRateExponentChange: (exponent: number) => void
+  seed: number
+  onSeedChange: (seed: number) => void
   engine: { label: string; note: string } | null
 }) {
   const learningRate = learningRateFromExponent(learningRateExponent)
@@ -120,26 +196,22 @@ export function NetworkEditor({
         )}
       </div>
 
-      <div role="radiogroup" aria-label="Activation function" className="space-y-2">
+      <div className="space-y-2">
         <p className="text-sm text-neutral-600 dark:text-neutral-400">Activation</p>
-        <div className="flex gap-2">
-          {ACTIVATIONS.map(({ value, label }) => (
-            <button
-              key={value}
-              type="button"
-              role="radio"
-              aria-checked={activation === value}
-              onClick={() => onActivationChange(value)}
-              className={`${buttonClass} ${
-                activation === value
-                  ? 'border-blue-500 bg-blue-50 text-blue-900 dark:border-[#47a3f3] dark:bg-blue-950 dark:text-blue-100'
-                  : ''
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <RadioGroup
+          label="Activation function"
+          options={ACTIVATIONS}
+          value={activation}
+          onChange={onActivationChange}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-sm text-neutral-600 dark:text-neutral-400">Optimizer</p>
+        <RadioGroup label="Optimizer" options={OPTIMIZERS} value={optimizer} onChange={onOptimizerChange} />
+        <p className="text-xs text-neutral-600 dark:text-neutral-400">
+          Switching optimizer picks a learning rate that suits it, and starts training over.
+        </p>
       </div>
 
       <label className="block space-y-2 text-sm">
@@ -158,6 +230,8 @@ export function NetworkEditor({
           className="w-full accent-blue-500"
         />
       </label>
+
+      <SeedField seed={seed} onChange={onSeedChange} />
 
       <div className="border-t border-neutral-200 pt-3 text-xs text-neutral-600 dark:border-neutral-800 dark:text-neutral-400">
         <p className="font-medium text-neutral-800 dark:text-neutral-200">
