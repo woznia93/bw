@@ -78,6 +78,12 @@ export class ReferenceEngine implements NetworkEngine {
     this.targets = new Tensor([points.length, 1], targets)
   }
 
+  setLearningRate(learningRate: number) {
+    if (!this.config) throw new Error('call initialize() first')
+    validate({ ...this.config, learningRate })
+    this.config.learningRate = learningRate
+  }
+
   trainStep(): number {
     const { inputs, targets } = this
     if (!this.config) throw new Error('call initialize() first')

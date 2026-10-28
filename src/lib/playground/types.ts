@@ -24,6 +24,8 @@ export type NetworkConfig = {
 export interface NetworkEngine {
   initialize(config: NetworkConfig): void
   setDataset(points: Point[]): void
+  // Change the learning rate without touching the weights
+  setLearningRate(learningRate: number): void
   // One optimizer step over the dataset. Returns the loss.
   trainStep(): number
   // inputs is flattened [x0, y0, x1, y1, ...]. Returns the probability of
