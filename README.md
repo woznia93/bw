@@ -32,7 +32,7 @@ src/
 │   └── terminal/          # Terminal window, launcher button and keyboard handling
 ├── data/terminal.ts       # Terminal content (about, skills, experience) and color themes
 ├── lib/terminal/          # Command parser, commands, virtual filesystem, tab completion
-├── lib/playground/        # Playground types, datasets and (soon) the network engine
+├── lib/playground/        # Playground types, datasets, autograd and the reference engine
 └── utils/
     ├── blogUtils.ts       # Reads and parses MDX posts
     └── spotify.ts         # Spotify API and listening history
@@ -86,7 +86,7 @@ Post content goes here.
 
 `/playground` will let visitors configure, train and inspect a small neural network in the browser. It's being built in ordered steps, tracked in [#13](https://github.com/woznia93/bw/issues/13), and stays hidden (not linked, `noindex`) until the last step. The design is in [`docs/playground.md`](docs/playground.md).
 
-Run the tests with `pnpm test`.
+Run the tests with `pnpm test`. The playground's TypeScript engine (`src/lib/playground/`) follows the C++ engine in [gpu_nn_framework](https://github.com/woznia93/gpu_nn_framework) and is checked against numbers produced by the real C++ code (`cpp/golden/`) as well as against finite differences.
 
 ## Resume viewer
 
