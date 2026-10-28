@@ -1,8 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { appendHistory } from '@/lib/playground/history'
+import type { LossPoint } from '@/lib/playground/history'
 import type { Speed, TrainerCommand, TrainerEvent, TrainerStatus } from '@/lib/playground/protocol'
 import type { NetworkConfig, Point } from '@/lib/playground/types'
+
+// How many points of loss history the page keeps; older ones are thinned out
+const MAX_HISTORY = 1500
 
 // 'starting' while the worker loads, 'failed' if it can't run at all
 export type Phase = 'starting' | 'ready' | 'failed'
@@ -27,11 +32,15 @@ export function useTrainer({
   const [status, setStatus] = useState<TrainerStatus>('paused')
   const [step, setStep] = useState(0)
   const [loss, setLoss] = useState<number | null>(null)
+  const [accuracy, setAccuracy] = useState<number | null>(null)
+  const [grid, setGrid] = useState<Float32Array | null>(null)
+  const [history, setHistory] = useState<LossPoint[]>([])
   const [engine, setEngine] = useState<{ label: string; note: string } | null>(null)
   const [message, setMessage] = useState<string | null>(null)
 
   // The worker's startup handshake needs the latest values, not the ones from
   // when the effect was created
+  const run = useRef(0)
   const latest = useRef({ config, points, speed })
   latest.current = { config, points, speed }
 
@@ -43,6 +52,7 @@ export function useTrainer({
     setPhase('starting')
     setStatus('paused')
     setMessage(null)
+    run.current = 0
 
     let worker: Worker
     try {
@@ -65,6 +75,15 @@ export function useTrainer({
         setStatus(data.status)
         setStep(data.step)
         setLoss(data.loss)
+        setAccuracy(data.accuracy)
+        if (data.grid) setGrid(data.grid)
+        // A new run clears the loss curve; otherwise the new points are added to it
+        if (data.run !== run.current) {
+          run.current = data.run
+          setHistory(data.losses)
+        } else if (data.losses.length > 0) {
+          setHistory((current) => appendHistory(current, data.losses, MAX_HISTORY))
+        }
       } else if (data.type === 'error') {
         setMessage(data.message)
       }
@@ -102,6 +121,9 @@ export function useTrainer({
     status,
     step,
     loss,
+    accuracy,
+    grid,
+    history,
     engine,
     message,
     dismissMessage: () => setMessage(null),

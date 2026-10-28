@@ -8,13 +8,14 @@ import { TrainingSession } from '@/lib/playground/session'
 
 // The worker's global scope, which the DOM typings don't describe
 const scope = self as unknown as {
-  postMessage: (event: TrainerEvent) => void
+  postMessage: (event: TrainerEvent, transfer?: Transferable[]) => void
   onmessage: ((event: MessageEvent<TrainerCommand>) => void) | null
 }
 
 const session = new TrainingSession(
   new ReferenceEngine(),
-  (event) => scope.postMessage(event),
+  // The grid is handed over rather than copied
+  (event) => scope.postMessage(event, event.type === 'snapshot' && event.grid ? [event.grid.buffer] : []),
   {
     now: () => performance.now(),
     setTimeout: (callback, ms) => setTimeout(callback, ms),

@@ -78,7 +78,7 @@ export function TrainingControls({
         </label>
       </div>
 
-      <dl className="grid grid-cols-3 gap-3 text-sm">
+      <dl className="grid grid-cols-[repeat(auto-fit,minmax(5.5rem,1fr))] gap-3 text-sm">
         <div>
           <dt className="text-xs text-neutral-600 dark:text-neutral-400">Status</dt>
           <dd className="flex items-center gap-2">
@@ -95,6 +95,17 @@ export function TrainingControls({
         <div>
           <dt className="text-xs text-neutral-600 dark:text-neutral-400">Loss</dt>
           <dd className="tabular-nums">{trainer.loss === null ? '—' : trainer.loss.toFixed(4)}</dd>
+        </div>
+        <div>
+          <dt
+            className="text-xs text-neutral-600 dark:text-neutral-400"
+            title="Share of the training points the network classifies correctly"
+          >
+            Accuracy
+          </dt>
+          <dd className="tabular-nums">
+            {trainer.accuracy === null ? '—' : `${(trainer.accuracy * 100).toFixed(0)}%`}
+          </dd>
         </div>
       </dl>
 
