@@ -1,7 +1,9 @@
 const TOKEN_URL = 'https://accounts.spotify.com/api/token'
 const API_URL = 'https://api.spotify.com/v1'
 const HISTORY_KEY = 'spotify:plays'
-const WEEK_MS = 7 * 24 * 60 * 60 * 1000
+const DAY_MS = 24 * 60 * 60 * 1000
+// Weeks run Sunday 12 am to Sunday 12 am in this time zone (any IANA name)
+const TIME_ZONE = process.env.SPOTIFY_TIMEZONE ?? 'America/New_York'
 
 const clientId = process.env.SPOTIFY_CLIENT_ID
 const clientSecret = process.env.SPOTIFY_CLIENT_SECRET
@@ -39,6 +41,8 @@ export type NowPlaying = {
 export type WeeklyStats = {
   minutes: number
   plays: number
+  // e.g. "Oct 25", the Sunday this week's stats start from
+  since: string
   topTracks: (Track & { count: number })[]
   topPlaylist?: Playlist & { count: number }
   // 'history' = every play stored in Redis, 'recent' = only Spotify's last 50 plays
@@ -178,7 +182,7 @@ export async function syncPlays() {
     'ZREMRANGEBYSCORE',
     HISTORY_KEY,
     '-inf',
-    Date.now() - WEEK_MS - 24 * 60 * 60 * 1000,
+    Date.now() - 8 * DAY_MS,
   ])
 
   // Plays come back newest first
@@ -197,11 +201,58 @@ export async function syncPlays() {
   }
 }
 
+// The wall-clock time in TIME_ZONE for an instant, read as if it were UTC
+function zonedParts(instant: number) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-US', {
+      timeZone: TIME_ZONE,
+      hourCycle: 'h23',
+      weekday: 'short',
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: 'numeric',
+      second: 'numeric',
+    })
+      .formatToParts(new Date(instant))
+      .map((part) => [part.type, part.value])
+  )
+  return {
+    weekday: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(
+      parts.weekday
+    ),
+    year: Number(parts.year),
+    month: Number(parts.month),
+    day: Number(parts.day),
+    asUtc: Date.UTC(
+      Number(parts.year),
+      Number(parts.month) - 1,
+      Number(parts.day),
+      Number(parts.hour),
+      Number(parts.minute),
+      Number(parts.second)
+    ),
+  }
+}
+
+// The instant the current week began: the most recent Sunday at 12 am in TIME_ZONE
+export function getWeekStart(now = Date.now()) {
+  const local = zonedParts(now)
+  const sundayMidnight = Date.UTC(local.year, local.month - 1, local.day - local.weekday)
+
+  // Convert back to a real instant, using the zone's UTC offset at that moment
+  // (a daylight saving change during the week can make it differ from today's)
+  let start = sundayMidnight + (now - local.asUtc)
+  start = sundayMidnight + (start - zonedParts(start).asUtc)
+  return start
+}
+
 async function getWeekOfPlays(): Promise<{
   plays: Play[]
   source: WeeklyStats['source']
 }> {
-  const since = Date.now() - WEEK_MS
+  const since = getWeekStart()
 
   if (isHistoryConfigured()) {
     await syncPlays()
@@ -253,6 +304,11 @@ export async function getWeeklyStats(limit = 5): Promise<WeeklyStats> {
   return {
     minutes: Math.round(totalMs / 60000),
     plays: plays.length,
+    since: new Intl.DateTimeFormat('en-US', {
+      timeZone: TIME_ZONE,
+      month: 'short',
+      day: 'numeric',
+    }).format(getWeekStart()),
     topTracks,
     topPlaylist: await getTopPlaylist(plays),
     source,

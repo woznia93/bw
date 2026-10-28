@@ -171,8 +171,13 @@ export default async function Page() {
 
       <NowPlaying />
 
-      <h2 className="mt-10 mb-4 text-lg font-semibold tracking-tight">
+      <h2 className="mt-10 mb-4 flex items-baseline justify-between text-lg font-semibold tracking-tight">
         This week
+        {stats && (
+          <span className="text-xs font-normal text-neutral-500">
+            since {stats.since} · resets Sunday
+          </span>
+        )}
       </h2>
       {stats ? (
         <ThisWeek stats={stats} />
