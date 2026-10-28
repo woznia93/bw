@@ -32,7 +32,8 @@ src/
 │   └── terminal/          # Terminal window, launcher button and keyboard handling
 ├── data/terminal.ts       # Terminal content (about, skills, experience) and color themes
 ├── lib/terminal/          # Command parser, commands, virtual filesystem, tab completion
-├── lib/playground/        # Playground types, datasets, autograd and the reference engine
+├── lib/playground/        # Playground types, datasets, autograd, engine and training session
+├── workers/               # Web Worker that trains the playground's network off the main thread
 └── utils/
     ├── blogUtils.ts       # Reads and parses MDX posts
     └── spotify.ts         # Spotify API and listening history
