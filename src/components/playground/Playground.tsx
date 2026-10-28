@@ -5,6 +5,7 @@ import { DATASETS, DATASET_NAMES } from '@/lib/playground/datasets'
 import type { Speed } from '@/lib/playground/protocol'
 import type { Activation, DatasetName, NetworkConfig } from '@/lib/playground/types'
 import { ClassLegend, DatasetPlot } from './DatasetPlot'
+import { MetricsChart } from './MetricsChart'
 import { NetworkEditor, learningRateFromExponent } from './NetworkEditor'
 import { TrainingControls, buttonClass } from './TrainingControls'
 import { useTrainer } from './useTrainer'
@@ -67,8 +68,8 @@ export function Playground() {
   return (
     <div className="space-y-4">
       <p className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-100">
-        Work in progress. This page isn&apos;t linked from the rest of the site yet. You can
-        train a network here, but the decision boundary and loss chart aren&apos;t drawn yet.
+        Work in progress. This page isn&apos;t linked from the rest of the site yet, and a few
+        controls and views are still to come.
       </p>
 
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_15rem]">
@@ -95,10 +96,16 @@ export function Playground() {
             {DATASETS[dataset].description}
           </p>
 
-          <DatasetPlot points={points} name={DATASETS[dataset].label} />
+          <DatasetPlot
+            points={points}
+            name={DATASETS[dataset].label}
+            grid={trainer.grid}
+            running={trainer.status === 'running'}
+            step={trainer.step}
+          />
 
           <div className="mt-3 space-y-3">
-            <ClassLegend />
+            <ClassLegend showPrediction={trainer.grid !== null} />
             <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
               <label className="flex items-center gap-3 text-sm">
                 <span className="text-neutral-600 dark:text-neutral-400">Noise</span>
@@ -125,6 +132,14 @@ export function Playground() {
 
           <div className="mt-5 border-t border-neutral-200 pt-4 dark:border-neutral-800">
             <TrainingControls trainer={trainer} speed={speed} onSpeedChange={setSpeed} />
+          </div>
+
+          <div className="mt-5 border-t border-neutral-200 pt-4 dark:border-neutral-800">
+            <MetricsChart
+              history={trainer.history}
+              step={trainer.step}
+              learningRate={config.learningRate}
+            />
           </div>
         </Panel>
 

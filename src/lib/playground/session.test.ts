@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { DATASETS } from './datasets'
 import { ReferenceEngine } from './engine'
+import { gridInputs } from './grid'
 import type { TrainerCommand, TrainerEvent } from './protocol'
 import {
+  GRID_MS,
+  MAX_LOSSES_PER_SNAPSHOT,
   MAX_STEPS_PER_TICK,
   SNAPSHOT_MS,
   TICK_MS,
@@ -46,13 +49,15 @@ function fakeClock() {
   }
 }
 
+const TEST_GRID = 8
+
 const config: NetworkConfig = { hidden: [8], activation: 'tanh', learningRate: 0.5, seed: 1 }
 const points = DATASETS.xor.generate(100, 0.1, 1)
 
-function setup(engine: NetworkEngine = new ReferenceEngine()) {
+function setup(engine: NetworkEngine = new ReferenceEngine(), gridSize = TEST_GRID) {
   const clock = fakeClock()
   const events: TrainerEvent[] = []
-  const session = new TrainingSession(engine, (event) => events.push(event), clock.scheduler)
+  const session = new TrainingSession(engine, (event) => events.push(event), clock.scheduler, gridSize)
   const send = (command: TrainerCommand) => session.handle(command)
   const snapshots = () => events.filter((e) => e.type === 'snapshot') as Extract<TrainerEvent, { type: 'snapshot' }>[]
   const errors = () => events.filter((e) => e.type === 'error') as Extract<TrainerEvent, { type: 'error' }>[]
@@ -61,6 +66,13 @@ function setup(engine: NetworkEngine = new ReferenceEngine()) {
 }
 
 const configure: TrainerCommand = { type: 'configure', config, points }
+
+// The parts of a snapshot most tests care about
+const brief = (snapshot: { status: string; step: number; loss: number | null }) => ({
+  status: snapshot.status,
+  step: snapshot.step,
+  loss: snapshot.loss,
+})
 
 // The losses a plain engine produces, for checking the session doesn't change them
 function referenceLosses(count: number, learningRate = config.learningRate) {
@@ -74,7 +86,7 @@ describe('configure', () => {
   it('starts paused at step 0 with no loss yet', () => {
     const { send, last } = setup()
     send(configure)
-    expect(last()).toEqual({ type: 'snapshot', status: 'paused', step: 0, loss: null })
+    expect(brief(last())).toEqual({ status: 'paused', step: 0, loss: null })
   })
 
   it('reconfiguring while running stops training and starts over', () => {
@@ -85,7 +97,7 @@ describe('configure', () => {
     expect(last().step).toBeGreaterThan(0)
 
     send({ ...configure, config: { ...config, hidden: [4, 4] } })
-    expect(last()).toEqual({ type: 'snapshot', status: 'paused', step: 0, loss: null })
+    expect(brief(last())).toEqual({ status: 'paused', step: 0, loss: null })
     expect(clock.pending()).toBe(0)
   })
 
@@ -256,7 +268,7 @@ describe('reset and learning rate', () => {
     for (let i = 0; i < 25; i++) send({ type: 'step' })
     const firstRun = last().loss
     send({ type: 'reset' })
-    expect(last()).toEqual({ type: 'snapshot', status: 'paused', step: 0, loss: null })
+    expect(brief(last())).toEqual({ status: 'paused', step: 0, loss: null })
     for (let i = 0; i < 25; i++) send({ type: 'step' })
     expect(last().loss).toBe(firstRun)
   })
@@ -268,7 +280,7 @@ describe('reset and learning rate', () => {
     clock.advance(200)
     send({ type: 'reset' })
     clock.advance(1000)
-    expect(last()).toEqual({ type: 'snapshot', status: 'paused', step: 0, loss: null })
+    expect(brief(last())).toEqual({ status: 'paused', step: 0, loss: null })
   })
 
   it('a new learning rate applies from the next step without resetting', () => {
@@ -330,5 +342,170 @@ describe('when training goes wrong', () => {
     expect(errors()[0].message).toBe('out of memory')
     expect(last().status).toBe('paused')
     expect(clock.pending()).toBe(0)
+  })
+})
+
+describe('what each snapshot carries', () => {
+  type Snapshot = Extract<TrainerEvent, { type: 'snapshot' }>
+  const gridOf = (snapshot: Snapshot) => snapshot.grid!
+
+  it('has the decision boundary and accuracy straight after configuring', () => {
+    const { send, last } = setup()
+    send(configure)
+    expect(last().grid).toBeInstanceOf(Float32Array)
+    expect(last().grid).toHaveLength(TEST_GRID * TEST_GRID)
+    expect(last().accuracy).toBeGreaterThanOrEqual(0)
+    expect(last().accuracy).toBeLessThanOrEqual(1)
+    expect(last().losses).toEqual([])
+  })
+
+  it('grid holds the network\'s own predictions at each cell', () => {
+    const engine = new ReferenceEngine()
+    const { send, last } = setup(engine)
+    send(configure)
+    send({ type: 'step' })
+    send({ type: 'step' })
+    expect(Array.from(gridOf(last()))).toEqual(Array.from(engine.predict(gridInputs(TEST_GRID))))
+  })
+
+  it('accuracy is the fraction of training points the network gets right', () => {
+    const engine = new ReferenceEngine()
+    const { send, last } = setup(engine)
+    send(configure)
+    for (let i = 0; i < 60; i++) send({ type: 'step' })
+    const predictions = engine.predict(Float32Array.from(points.flatMap((p) => [p.x, p.y])))
+    const expected = points.filter((p, i) => (predictions[i] > 0.5 ? 1 : 0) === p.label).length / points.length
+    expect(last().accuracy).toBe(expected)
+  })
+
+  it('accuracy improves as the network learns', () => {
+    const { send, last } = setup()
+    send(configure)
+    const before = last().accuracy!
+    for (let i = 0; i < 600; i++) send({ type: 'step' })
+    expect(last().accuracy!).toBeGreaterThan(before)
+    expect(last().accuracy!).toBeGreaterThan(0.9)
+  })
+
+  it('reports the loss for every step since the last snapshot, in order', () => {
+    const { send, snapshots } = setup()
+    send(configure)
+    send({ type: 'step' })
+    send({ type: 'step' })
+    send({ type: 'step' })
+    const reported = snapshots().flatMap((snapshot) => snapshot.losses)
+    expect(reported.map((sample) => sample.step)).toEqual([1, 2, 3])
+    expect(reported.map((sample) => sample.loss)).toEqual(referenceLosses(3))
+  })
+
+  it('does not repeat or drop steps while running', () => {
+    const { send, clock, snapshots } = setup()
+    send(configure)
+    send({ type: 'setSpeed', speed: 'normal' })
+    send({ type: 'start' })
+    clock.advance(500)
+    send({ type: 'pause' })
+    const steps = snapshots().flatMap((snapshot) => snapshot.losses).map((sample) => sample.step)
+    const total = snapshots()[snapshots().length - 1].step
+    expect(steps.length).toBe(total)
+    expect(steps).toEqual(Array.from({ length: total }, (_, i) => i + 1))
+  })
+
+  it('thins the losses when a lot of steps ran between snapshots, keeping the newest', () => {
+    const { send, clock, snapshots } = setup()
+    send(configure)
+    send({ type: 'setSpeed', speed: 'max' })
+    send({ type: 'start' })
+    clock.advance(SNAPSHOT_MS * 3)
+    send({ type: 'pause' })
+    snapshots().forEach((snapshot) => {
+      expect(snapshot.losses.length).toBeLessThanOrEqual(MAX_LOSSES_PER_SNAPSHOT)
+    })
+    const withLosses = snapshots().filter((snapshot) => snapshot.losses.length > 0)
+    expect(withLosses.length).toBeGreaterThan(0)
+    withLosses.forEach((snapshot) => {
+      expect(snapshot.losses[snapshot.losses.length - 1].step).toBe(snapshot.step)
+    })
+  })
+
+  it('starts a new run when configured again or reset, and keeps the run while training', () => {
+    const { send, clock, last } = setup()
+    send(configure)
+    const first = last().run
+    send({ type: 'start' })
+    clock.advance(200)
+    expect(last().run).toBe(first)
+    send({ type: 'reset' })
+    const second = last().run
+    expect(second).not.toBe(first)
+    send(configure)
+    expect(last().run).not.toBe(second)
+  })
+
+  it('refreshes the grid no more often than it is due while running', () => {
+    const { send, clock, snapshots } = setup()
+    send(configure)
+    send({ type: 'setSpeed', speed: 'fast' })
+    send({ type: 'start' })
+    const before = snapshots().length
+    clock.advance(1000)
+    const running = snapshots().slice(before)
+    const withGrid = running.filter((snapshot) => snapshot.grid !== null).length
+    expect(withGrid).toBeLessThanOrEqual(Math.ceil(1000 / GRID_MS) + 1)
+    expect(withGrid).toBeGreaterThan(3)
+    expect(running.length).toBeGreaterThan(withGrid)
+  })
+
+  it('always refreshes the grid when the visitor pauses, steps or resets', () => {
+    const { send, clock, last } = setup()
+    send(configure)
+    send({ type: 'start' })
+    clock.advance(60)
+    send({ type: 'pause' })
+    expect(last().grid).not.toBeNull()
+    send({ type: 'step' })
+    expect(last().grid).not.toBeNull()
+    send({ type: 'reset' })
+    expect(last().grid).not.toBeNull()
+  })
+
+  it('refreshes the grid less often for a network that is slow to evaluate', () => {
+    // Each prediction over the grid costs 150 ms of fake time
+    const engine = new ReferenceEngine()
+    const clock = fakeClock()
+    const original = engine.predict.bind(engine)
+    let slow = false
+    engine.predict = (inputs) => {
+      if (slow && inputs.length === TEST_GRID * TEST_GRID * 2) clock.advance(0)
+      return original(inputs)
+    }
+    const events: TrainerEvent[] = []
+    let extra = 0
+    const session = new TrainingSession(engine, (event) => events.push(event), {
+      ...clock.scheduler,
+      now: () => clock.scheduler.now() + extra,
+    }, TEST_GRID)
+    session.handle(configure)
+    session.handle({ type: 'setSpeed', speed: 'fast' })
+    session.handle({ type: 'start' })
+    slow = true
+    // Make the grid look expensive: every call to now() after a grid call sees 150 ms more
+    const gridCalls = () => events.filter((e) => e.type === 'snapshot' && e.grid).length
+    engine.predict = (inputs) => {
+      if (inputs.length === TEST_GRID * TEST_GRID * 2) extra += 150
+      return original(inputs)
+    }
+    const before = gridCalls()
+    clock.advance(3000)
+    // Interval grows to ~5 x 150 ms = 750 ms, so about 4 grids in 3 s rather than 30
+    expect(gridCalls() - before).toBeLessThanOrEqual(6)
+    expect(gridCalls() - before).toBeGreaterThanOrEqual(1)
+  })
+
+  it('has no grid or accuracy before anything is configured', () => {
+    const { send, snapshots, errors } = setup()
+    send({ type: 'start' })
+    expect(errors()).toHaveLength(1)
+    expect(snapshots()).toHaveLength(0)
   })
 })

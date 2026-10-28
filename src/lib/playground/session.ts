@@ -1,6 +1,8 @@
+import { GRID_SIZE, gridInputs } from './grid'
+import { thin } from './history'
 import { SPEEDS } from './protocol'
-import type { Speed, TrainerCommand, TrainerEvent, TrainerStatus } from './protocol'
-import type { NetworkEngine } from './types'
+import type { LossSample, Speed, TrainerCommand, TrainerEvent, TrainerStatus } from './protocol'
+import type { NetworkEngine, Point } from './types'
 
 // Time functions are passed in so tests can control the clock
 export type Scheduler = {
@@ -18,6 +20,12 @@ export const TICK_BUDGET_MS = 12
 export const MAX_STEPS_PER_TICK = 2000
 // The page hears about progress at most this often, however fast training runs
 export const SNAPSHOT_MS = 50
+// The decision boundary is the expensive part of a snapshot, so it's refreshed less
+// often, and less often still (5x its own cost) for big networks
+export const GRID_MS = 100
+export const GRID_COST_FACTOR = 5
+// Loss values sent per snapshot, evenly spread if more steps than this ran
+export const MAX_LOSSES_PER_SNAPSHOT = 64
 
 // Runs training for the page: owns the engine, paces the steps and reports
 // progress. The Web Worker (src/workers/training.worker.ts) is a thin wrapper
@@ -34,10 +42,17 @@ export class TrainingSession {
   // Steps owed from slow speeds, where a tick is worth less than one whole step
   private owed = 0
 
+  private points: Point[] = []
+  private run = 0
+  private pendingLosses: LossSample[] = []
+  private lastGrid = -Infinity
+  private gridInterval = GRID_MS
+
   constructor(
     private engine: NetworkEngine,
     private post: (event: TrainerEvent) => void,
-    private scheduler: Scheduler
+    private scheduler: Scheduler,
+    private gridSize = GRID_SIZE
   ) {}
 
   handle(command: TrainerCommand) {
@@ -50,9 +65,9 @@ export class TrainingSession {
           this.engine.initialize(command.config)
           this.engine.setDataset(command.points)
           this.configured = true
-          this.step = 0
-          this.loss = null
-          this.snapshot()
+          this.points = command.points
+          this.startRun()
+          this.snapshot(true)
           break
         case 'setLearningRate':
           this.requireConfigured()
@@ -66,28 +81,35 @@ export class TrainingSession {
           break
         case 'pause':
           this.stop()
-          this.snapshot()
+          this.snapshot(true)
           break
         case 'step':
           this.requireConfigured()
           this.stop()
           this.train(1)
-          this.snapshot()
+          this.snapshot(true)
           break
         case 'reset':
           this.requireConfigured()
           this.stop()
           this.engine.reset()
-          this.step = 0
-          this.loss = null
-          this.snapshot()
+          this.startRun()
+          this.snapshot(true)
           break
       }
     } catch (error) {
       this.stop()
       this.post({ type: 'error', message: error instanceof Error ? error.message : String(error) })
-      if (this.configured) this.snapshot()
+      if (this.configured) this.snapshot(true)
     }
+  }
+
+  // A fresh start: step 0, no loss history
+  private startRun() {
+    this.run++
+    this.step = 0
+    this.loss = null
+    this.pendingLosses = []
   }
 
   private requireConfigured() {
@@ -101,7 +123,7 @@ export class TrainingSession {
     this.lastTick = this.scheduler.now()
     this.owed = 0
     this.schedule()
-    this.snapshot()
+    this.snapshot(true)
   }
 
   private stop() {
@@ -134,15 +156,15 @@ export class TrainingSession {
     } catch (error) {
       this.stop()
       this.post({ type: 'error', message: error instanceof Error ? error.message : String(error) })
-      this.snapshot()
+      this.snapshot(true)
       return
     }
 
     if (this.status !== 'running') {
-      this.snapshot()
+      this.snapshot(true)
       return
     }
-    if (this.scheduler.now() - this.lastSnapshot >= SNAPSHOT_MS) this.snapshot()
+    if (this.scheduler.now() - this.lastSnapshot >= SNAPSHOT_MS) this.snapshot(false)
     this.schedule()
   }
 
@@ -151,6 +173,7 @@ export class TrainingSession {
       const loss = this.engine.trainStep()
       this.step++
       this.loss = loss
+      this.pendingLosses.push({ step: this.step, loss })
       if (!Number.isFinite(loss)) {
         this.stop()
         this.post({
@@ -164,8 +187,51 @@ export class TrainingSession {
     }
   }
 
-  private snapshot() {
-    this.lastSnapshot = this.scheduler.now()
-    this.post({ type: 'snapshot', status: this.status, step: this.step, loss: this.loss })
+  // `forceGrid` is for moments the visitor caused (pause, step, reset, a new
+  // network), when the decision boundary should always be up to date. While
+  // running it's only recomputed when it's due.
+  private snapshot(forceGrid: boolean) {
+    const now = this.scheduler.now()
+    this.lastSnapshot = now
+
+    let grid: Float32Array | null = null
+    let accuracy: number | null = null
+    if (this.configured) {
+      accuracy = this.accuracy()
+      if (forceGrid || now - this.lastGrid >= this.gridInterval) {
+        grid = this.engine.predict(gridInputs(this.gridSize))
+        const cost = this.scheduler.now() - now
+        this.lastGrid = this.scheduler.now()
+        this.gridInterval = Math.max(GRID_MS, cost * GRID_COST_FACTOR)
+      }
+    }
+
+    const losses = thin(this.pendingLosses, MAX_LOSSES_PER_SNAPSHOT)
+    this.pendingLosses = []
+    this.post({
+      type: 'snapshot',
+      status: this.status,
+      step: this.step,
+      loss: this.loss,
+      run: this.run,
+      accuracy,
+      losses,
+      grid,
+    })
+  }
+
+  private accuracy(): number | null {
+    if (this.points.length === 0) return null
+    const inputs = new Float32Array(this.points.length * 2)
+    this.points.forEach((point, i) => {
+      inputs[2 * i] = point.x
+      inputs[2 * i + 1] = point.y
+    })
+    const predictions = this.engine.predict(inputs)
+    let correct = 0
+    this.points.forEach((point, i) => {
+      if ((predictions[i] > 0.5 ? 1 : 0) === point.label) correct++
+    })
+    return correct / this.points.length
   }
 }
