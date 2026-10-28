@@ -1,6 +1,6 @@
 # bradywoz.com
 
-Source code for my personal portfolio site, [bradywoz.com](https://bradywoz.com). It has a short intro, an about page, write-ups of my projects, a music page with live Spotify listening stats, and my resume.
+Source code for my personal portfolio site, [bradywoz.com](https://bradywoz.com). It has a short intro, an about page, write-ups of my projects, a music page with live Spotify listening stats, an interactive terminal, and my resume.
 
 ## Tech stack
 
@@ -23,9 +23,13 @@ src/
 │   │   └── posts/         # Project write-ups (.mdx)
 │   ├── music/             # Now playing and weekly Spotify stats
 │   ├── api/spotify/       # Now-playing and history sync endpoints
+│   ├── api/terminal/      # Project content the terminal loads when opened
 │   ├── og/                # Dynamic Open Graph image generation
 │   └── rss/               # RSS feed
 ├── components/            # Nav, footer, MDX renderer, post list, now playing
+│   └── terminal/          # Terminal window, launcher button and keyboard handling
+├── data/terminal.ts       # Terminal content (about, skills, experience) and color themes
+├── lib/terminal/          # Command parser, commands, virtual filesystem, tab completion
 └── utils/
     ├── blogUtils.ts       # Reads and parses MDX posts
     └── spotify.ts         # Spotify API and listening history
@@ -74,6 +78,18 @@ Post content goes here.
 ```
 
 `title`, `publishedAt` and `summary` are required. `image`, `author`, `github` and `recommended` are optional.
+
+## Interactive terminal
+
+Press `Ctrl+K` (or `Cmd+K`, or `~`) anywhere on the site, or click the `>_` button in the bottom-right corner, to open a terminal for exploring the portfolio. It's a second way to navigate, so the normal site works exactly as before. It opens as a centered window with an option to expand it, and full screen on phones.
+
+Try `help`, `projects`, `neofetch`, `ls`, `cd projects`, `cat about.md`, `tree`, `grep CUDA`, `open <project>`, `resume` and `theme matrix`. Tab completes commands and paths, the up and down arrows browse history, `Ctrl+L` clears the screen and `Esc` closes it.
+
+- **Nothing runs on a real shell.** Input is only matched against a fixed list of commands in `src/lib/terminal/commands.ts`, and the folders and files are a virtual filesystem built from the portfolio content (`src/lib/terminal/filesystem.ts`). There's no backend beyond one static route that serves the project posts.
+- **Add a command** by adding an entry to the `commands` object in `src/lib/terminal/commands.ts`. It receives the arguments and the current session and returns lines to print, plus optional effects such as opening a page.
+- **Edit the content** (about text, skills, experience, links, color themes) in `src/data/terminal.ts`. Projects come from the posts in `src/app/blog/posts/`, so new posts show up in the terminal automatically. `experience` lists whatever is in `EXPERIENCE` and otherwise points to the resume.
+- **Themes:** the default is blue on black to match the site. `theme` lists the others, and the choice is remembered in the browser.
+- **Performance:** the terminal's code and project content only load the first time it's opened, so page load is unaffected.
 
 ## Music page setup
 
