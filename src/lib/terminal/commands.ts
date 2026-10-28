@@ -362,7 +362,7 @@ const commands: Record<string, Command> = {
 
       const key = target.toLowerCase()
       if (PAGES[key]) return go(PAGES[key])
-      if (key === 'resume') return go(LINKS.resume)
+      if (key === 'resume') return go(LINKS.resumePage)
       if (key === 'github') return go(LINKS.github)
       if (key === 'linkedin') return go(LINKS.linkedin)
 
@@ -387,8 +387,8 @@ const commands: Record<string, Command> = {
   resume: {
     desc: 'Open my resume',
     run: () => ({
-      out: [text('Opening resume.pdf', 'dim')],
-      effects: [{ type: 'external', url: LINKS.resume }],
+      out: [text(`Opening ${LINKS.resumePage}`, 'dim')],
+      effects: [{ type: 'navigate', path: LINKS.resumePage }],
     }),
   },
 
