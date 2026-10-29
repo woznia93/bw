@@ -5,9 +5,15 @@ to produce `src/lib/playground/__fixtures__/golden.json`. The playground's TypeS
 reference engine is tested against it (`src/lib/playground/golden.test.ts`), which is how we
 know the stand-in behaves like the real engine: same layers, loss, optimizer and gradients.
 
-It runs four small networks (1 to 3 hidden layers, ReLU and tanh, different learning rates) from
-fixed starting weights on 12 fixed points, and records the initial predictions, the gradients after
-one backward pass, the loss at each of 20 SGD steps, and the final weights and predictions.
+It runs ten small networks (1 to 3 hidden layers; ReLU, tanh and sigmoid; SGD, SGD with momentum
+0.9 and Adam; different learning rates) from fixed starting weights on 12 fixed points, and records
+the initial predictions, the gradients after one backward pass, the loss at each of 20 optimizer
+steps, and the final weights and predictions.
+
+SGD and momentum agree with the TypeScript engine to about 3e-7. Adam's final weights can differ
+by a few 1e-5, because Adam divides each update by the size of that weight's own gradient, which
+magnifies float32 rounding noise in very small gradients. The test allows for that on Adam's final
+weights only. Its losses and predictions still agree to a few 1e-7.
 
 ## Regenerating
 

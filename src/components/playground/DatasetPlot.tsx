@@ -187,7 +187,7 @@ export function DatasetPlot({
           className="pointer-events-none absolute left-2 top-2 flex items-center gap-1.5 rounded-full bg-neutral-900/70 px-2 py-0.5 text-xs text-white dark:bg-neutral-800/80"
         >
           <span
-            className={`inline-block h-2 w-2 rounded-full ${running ? 'animate-pulse bg-[#47a3f3]' : 'bg-neutral-400'}`}
+            className={`inline-block h-2 w-2 rounded-full ${running ? "animate-pulse bg-[#47a3f3] motion-reduce:animate-none" : "bg-neutral-400"}`}
           />
           {running ? 'Training' : 'Paused'} · step {step.toLocaleString('en-US')}
         </span>

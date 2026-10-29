@@ -1,7 +1,15 @@
 import { GRID_SIZE, gridInputs } from './grid'
 import { thin } from './history'
+import { binaryCrossEntropy, classificationAccuracy, l2Norm } from './metrics'
 import { SPEEDS } from './protocol'
-import type { LossSample, Speed, TrainerCommand, TrainerEvent, TrainerStatus } from './protocol'
+import type {
+  Evaluation,
+  LossSample,
+  Speed,
+  TrainerCommand,
+  TrainerEvent,
+  TrainerStatus,
+} from './protocol'
 import type { NetworkEngine, Point } from './types'
 
 // Time functions are passed in so tests can control the clock
@@ -20,8 +28,9 @@ export const TICK_BUDGET_MS = 12
 export const MAX_STEPS_PER_TICK = 2000
 // The page hears about progress at most this often, however fast training runs
 export const SNAPSHOT_MS = 50
-// The decision boundary is the expensive part of a snapshot, so it's refreshed less
-// often, and less often still (5x its own cost) for big networks
+// The evaluation (decision boundary, accuracies, weights) is the expensive part of a
+// snapshot, so it's refreshed less often, and less often still (5x its own cost)
+// for big networks
 export const GRID_MS = 100
 export const GRID_COST_FACTOR = 5
 // Loss values sent per snapshot, evenly spread if more steps than this ran
@@ -43,10 +52,11 @@ export class TrainingSession {
   private owed = 0
 
   private points: Point[] = []
+  private testPoints: Point[] = []
   private run = 0
   private pendingLosses: LossSample[] = []
-  private lastGrid = -Infinity
-  private gridInterval = GRID_MS
+  private lastEvaluation = -Infinity
+  private evaluationInterval = GRID_MS
 
   constructor(
     private engine: NetworkEngine,
@@ -66,6 +76,7 @@ export class TrainingSession {
           this.engine.setDataset(command.points)
           this.configured = true
           this.points = command.points
+          this.testPoints = command.testPoints
           this.startRun()
           this.snapshot(true)
           break
@@ -187,23 +198,19 @@ export class TrainingSession {
     }
   }
 
-  // `forceGrid` is for moments the visitor caused (pause, step, reset, a new
-  // network), when the decision boundary should always be up to date. While
-  // running it's only recomputed when it's due.
-  private snapshot(forceGrid: boolean) {
+  // `forceEvaluation` is for moments the visitor caused (pause, step, reset, a new
+  // network), when the decision boundary and numbers should always be up to date.
+  // While running they're only recomputed when due.
+  private snapshot(forceEvaluation: boolean) {
     const now = this.scheduler.now()
     this.lastSnapshot = now
 
-    let grid: Float32Array | null = null
-    let accuracy: number | null = null
-    if (this.configured) {
-      accuracy = this.accuracy()
-      if (forceGrid || now - this.lastGrid >= this.gridInterval) {
-        grid = this.engine.predict(gridInputs(this.gridSize))
-        const cost = this.scheduler.now() - now
-        this.lastGrid = this.scheduler.now()
-        this.gridInterval = Math.max(GRID_MS, cost * GRID_COST_FACTOR)
-      }
+    let evaluation: Evaluation | null = null
+    if (this.configured && (forceEvaluation || now - this.lastEvaluation >= this.evaluationInterval)) {
+      evaluation = this.evaluate()
+      const cost = this.scheduler.now() - now
+      this.lastEvaluation = this.scheduler.now()
+      this.evaluationInterval = Math.max(GRID_MS, cost * GRID_COST_FACTOR)
     }
 
     const losses = thin(this.pendingLosses, MAX_LOSSES_PER_SNAPSHOT)
@@ -214,24 +221,44 @@ export class TrainingSession {
       step: this.step,
       loss: this.loss,
       run: this.run,
-      accuracy,
       losses,
-      grid,
+      evaluation,
     })
   }
 
-  private accuracy(): number | null {
-    if (this.points.length === 0) return null
-    const inputs = new Float32Array(this.points.length * 2)
-    this.points.forEach((point, i) => {
-      inputs[2 * i] = point.x
-      inputs[2 * i + 1] = point.y
-    })
-    const predictions = this.engine.predict(inputs)
-    let correct = 0
-    this.points.forEach((point, i) => {
-      if ((predictions[i] > 0.5 ? 1 : 0) === point.label) correct++
-    })
-    return correct / this.points.length
+  private evaluate(): Evaluation {
+    const predict = (points: Point[]) => {
+      const inputs = new Float32Array(points.length * 2)
+      points.forEach((point, i) => {
+        inputs[2 * i] = point.x
+        inputs[2 * i + 1] = point.y
+      })
+      return this.engine.predict(inputs)
+    }
+    const labels = (points: Point[]) => points.map((point) => point.label)
+
+    const trainPredictions = predict(this.points)
+    const hasTest = this.testPoints.length > 0
+    const testPredictions = hasTest ? predict(this.testPoints) : null
+    const parameters = this.engine.getParameterValues()
+
+    // One norm per layer, over its weight and bias together
+    let gradientNorms: number[] | null = null
+    if (this.step > 0) {
+      const gradients = this.engine.getGradientValues()
+      gradientNorms = []
+      for (let layer = 0; layer < gradients.length; layer += 2) {
+        gradientNorms.push(l2Norm([gradients[layer], gradients[layer + 1]]))
+      }
+    }
+
+    return {
+      grid: this.engine.predict(gridInputs(this.gridSize)),
+      trainAccuracy: classificationAccuracy(trainPredictions, labels(this.points)),
+      testAccuracy: testPredictions ? classificationAccuracy(testPredictions, labels(this.testPoints)) : null,
+      testLoss: testPredictions ? binaryCrossEntropy(testPredictions, labels(this.testPoints)) : null,
+      parameters,
+      gradientNorms,
+    }
   }
 }

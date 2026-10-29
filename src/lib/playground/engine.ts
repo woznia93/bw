@@ -18,6 +18,10 @@ export const REFERENCE_ENGINE_LABEL = 'TypeScript reference engine'
 export const REFERENCE_ENGINE_NOTE =
   'A TypeScript stand-in that follows the C++ autograd engine and is tested against its numbers. The C++ build running in the browser comes later.'
 
+// The same settings as the C++ engine's SGD (momentum) and Adam
+export const MOMENTUM = 0.9
+export const ADAM = { beta1: 0.9, beta2: 0.999, epsilon: 1e-8 }
+
 export const MAX_HIDDEN_LAYERS = 6
 export const MAX_NEURONS = 32
 
@@ -30,8 +34,11 @@ function validate(config: NetworkConfig) {
       throw new Error(`each hidden layer needs 1 to ${MAX_NEURONS} neurons, got ${width}`)
     }
   })
-  if (config.activation !== 'relu' && config.activation !== 'tanh') {
+  if (!['relu', 'tanh', 'sigmoid'].includes(config.activation)) {
     throw new Error(`unknown activation "${config.activation}"`)
+  }
+  if (!['sgd', 'momentum', 'adam'].includes(config.optimizer)) {
+    throw new Error(`unknown optimizer "${config.optimizer}"`)
   }
   if (!Number.isFinite(config.learningRate) || config.learningRate <= 0) {
     throw new Error(`learning rate must be a positive number, got ${config.learningRate}`)
@@ -42,8 +49,8 @@ function validate(config: NetworkConfig) {
 }
 
 // A small network: Linear -> activation for each hidden layer, then Linear to
-// one output and a sigmoid, trained with binary cross-entropy and plain SGD on
-// the whole dataset each step. It follows the C++ engine's design (same layers,
+// one output and a sigmoid, trained with binary cross-entropy on the whole
+// dataset each step, using SGD, SGD with momentum or Adam. It follows the C++ engine's design (same layers,
 // loss and initialization scheme) and is tested against it, but it's a
 // TypeScript stand-in: it is not the C++ code running in the browser.
 export class ReferenceEngine implements NetworkEngine {
@@ -54,6 +61,10 @@ export class ReferenceEngine implements NetworkEngine {
   private inputs: Tensor | null = null
   private targets: Tensor | null = null
   private steps = 0
+  // Optimizer state, one array per parameter: momentum's velocity, or Adam's two moments
+  private velocity: Float32Array[] = []
+  private moment1: Float32Array[] = []
+  private moment2: Float32Array[] = []
 
   get stepCount() {
     return this.steps
@@ -94,16 +105,51 @@ export class ReferenceEngine implements NetworkEngine {
     const loss = bceLoss(this.forward(inputs), targets)
     backward(loss)
 
-    // SGD: p <- p - lr * grad
-    const lr = this.config.learningRate
-    params.forEach((param) => {
-      const grad = param.grad
-      if (!grad) return
-      for (let i = 0; i < param.size; i++) param.data[i] -= lr * grad[i]
-    })
-
+    this.applyOptimizer(params)
     this.steps++
     return loss.data[0]
+  }
+
+  private applyOptimizer(params: Tensor[]) {
+    const { learningRate: lr, optimizer } = this.config!
+
+    if (optimizer === 'sgd') {
+      // p <- p - lr * grad
+      params.forEach((param) => {
+        const grad = param.grad
+        if (!grad) return
+        for (let i = 0; i < param.size; i++) param.data[i] -= lr * grad[i]
+      })
+    } else if (optimizer === 'momentum') {
+      // v <- mu * v + grad;  p <- p - lr * v
+      params.forEach((param, k) => {
+        const grad = param.grad
+        if (!grad) return
+        const v = this.velocity[k]
+        for (let i = 0; i < param.size; i++) {
+          v[i] = MOMENTUM * v[i] + grad[i]
+          param.data[i] -= lr * v[i]
+        }
+      })
+    } else {
+      // Adam, with bias-corrected moments:
+      //   m <- b1 m + (1 - b1) g;  v <- b2 v + (1 - b2) g^2;  p <- p - lr m^ / (sqrt(v^) + eps)
+      const { beta1, beta2, epsilon } = ADAM
+      const t = this.steps + 1
+      const correction1 = 1 - Math.pow(beta1, t)
+      const correction2 = 1 - Math.pow(beta2, t)
+      params.forEach((param, k) => {
+        const grad = param.grad
+        if (!grad) return
+        const m = this.moment1[k]
+        const v = this.moment2[k]
+        for (let i = 0; i < param.size; i++) {
+          m[i] = beta1 * m[i] + (1 - beta1) * grad[i]
+          v[i] = beta2 * v[i] + (1 - beta2) * grad[i] * grad[i]
+          param.data[i] -= (lr * (m[i] / correction1)) / (Math.sqrt(v[i] / correction2) + epsilon)
+        }
+      })
+    }
   }
 
   predict(inputs: Float32Array): Float32Array {
@@ -169,10 +215,15 @@ export class ReferenceEngine implements NetworkEngine {
       inFeatures = outFeatures
     })
     this.steps = 0
+    const sizes = this.parameters().map((param) => param.size)
+    this.velocity = sizes.map((size) => new Float32Array(size))
+    this.moment1 = sizes.map((size) => new Float32Array(size))
+    this.moment2 = sizes.map((size) => new Float32Array(size))
   }
 
   private forward(x: Tensor): Tensor {
-    const activate = this.config!.activation === 'relu' ? relu : tanh
+    const activation = this.config!.activation
+    const activate = activation === 'relu' ? relu : activation === 'tanh' ? tanh : sigmoid
     let h = x
     const last = this.weights.length - 1
     this.weights.forEach((weight, i) => {

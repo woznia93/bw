@@ -24,7 +24,8 @@
 struct Case {
     std::string name;
     std::vector<int> hidden;
-    std::string activation;
+    std::string activation;  // relu, tanh or sigmoid
+    std::string optimizer;   // sgd, momentum or adam
     float lr;
 };
 
@@ -76,6 +77,7 @@ static void run_case(const Case& c, int case_index, bool last)
         linears.push_back(layer);
         net.add(layer);
         if (c.activation == "relu") net.add(std::make_shared<ReLULayer>());
+        else if (c.activation == "sigmoid") net.add(std::make_shared<SigmoidLayer>());
         else net.add(std::make_shared<TanhLayer>());
         in = width;
     }
@@ -100,13 +102,20 @@ static void run_case(const Case& c, int case_index, bool last)
 
     std::printf("{\"name\":\"%s\",\"hidden\":[", c.name.c_str());
     for (size_t i = 0; i < c.hidden.size(); ++i) std::printf("%s%d", i ? "," : "", c.hidden[i]);
-    std::printf("],\"activation\":\"%s\",\"learningRate\":%.9g,\"steps\":%d,", c.activation.c_str(), c.lr, STEPS);
+    std::printf("],\"activation\":\"%s\",\"optimizer\":\"%s\",\"learningRate\":%.9g,\"steps\":%d,",
+                c.activation.c_str(), c.optimizer.c_str(), c.lr, STEPS);
 
     print_tensors("initialParams", params, false);
     std::printf(",\"initialPredictions\":");
     print_array(predict(net).data_ptr(), 6);
 
-    SGD opt(net.parameters(), c.lr);
+    // One of the three optimizers, behind the common base class
+    std::unique_ptr<Optimizer> optimizer;
+    if (c.optimizer == "adam") optimizer = std::make_unique<Adam>(net.parameters(), c.lr);
+    else if (c.optimizer == "momentum") optimizer = std::make_unique<SGD>(net.parameters(), c.lr, 0.9f);
+    else optimizer = std::make_unique<SGD>(net.parameters(), c.lr);
+    Optimizer& opt = *optimizer;
+
     std::vector<float> losses;
     for (int step = 0; step < STEPS; ++step) {
         opt.zero_grad();
@@ -132,10 +141,16 @@ static void run_case(const Case& c, int case_index, bool last)
 int main(int argc, char** argv)
 {
     const std::vector<Case> cases = {
-        {"one hidden layer, relu", {3}, "relu", 0.1f},
-        {"two hidden layers, tanh", {4, 3}, "tanh", 0.5f},
-        {"three hidden layers, relu", {4, 3, 3}, "relu", 0.1f},
-        {"wide hidden layer, tanh, large step", {5}, "tanh", 1.0f},
+        {"one hidden layer, relu", {3}, "relu", "sgd", 0.1f},
+        {"two hidden layers, tanh", {4, 3}, "tanh", "sgd", 0.5f},
+        {"three hidden layers, relu", {4, 3, 3}, "relu", "sgd", 0.1f},
+        {"wide hidden layer, tanh, large step", {5}, "tanh", "sgd", 1.0f},
+        {"two hidden layers, sigmoid", {4, 3}, "sigmoid", "sgd", 4.0f},
+        {"momentum, tanh", {5}, "tanh", "momentum", 0.1f},
+        {"momentum, two hidden layers, relu", {4, 3}, "relu", "momentum", 0.2f},
+        {"adam, tanh", {5}, "tanh", "adam", 0.05f},
+        {"adam, two hidden layers, relu", {6, 4}, "relu", "adam", 0.05f},
+        {"adam, sigmoid", {4, 3}, "sigmoid", "adam", 0.3f},
     };
 
     std::printf("{\"source\":\"%s\",\"data\":[", argc > 1 ? argv[1] : "woznia93/gpu_nn_framework");
