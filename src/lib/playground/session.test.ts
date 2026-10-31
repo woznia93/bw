@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import { DATASETS } from './datasets'
 import { ReferenceEngine } from './engine'
@@ -14,6 +15,7 @@ import {
   type Scheduler,
 } from './session'
 import type { NetworkConfig, NetworkEngine } from './types'
+import { WasmEngine } from './wasm-engine'
 
 // A clock the test controls: nothing runs until advance() moves time forward
 function fakeClock() {
@@ -545,5 +547,68 @@ describe('what each snapshot carries', () => {
     send({ type: 'start' })
     expect(errors()).toHaveLength(1)
     expect(snapshots()).toHaveLength(0)
+  })
+})
+
+describe('with the C++ engine compiled to WebAssembly', () => {
+  const wasmModule = new WebAssembly.Module(
+    readFileSync(new URL('../../../public/playground/engine.wasm', import.meta.url))
+  )
+
+  it('trains, steps and reports exactly what the engine itself computes', () => {
+    const direct = new WasmEngine(wasmModule)
+    direct.initialize(config)
+    direct.setDataset(points)
+    const expected = Array.from({ length: 5 }, () => direct.trainStep())
+
+    const { send, snapshots, last } = setup(new WasmEngine(wasmModule))
+    send(configure)
+    for (let i = 0; i < 5; i++) send({ type: 'step' })
+    expect(snapshots().flatMap((s) => s.losses.map((sample) => sample.loss))).toEqual(expected)
+    expect(last().step).toBe(5)
+  })
+
+  it('reports the weights, gradient norms, accuracies and boundary the page draws', () => {
+    const engine = new WasmEngine(wasmModule)
+    const { send, last } = setup(engine)
+    send(configure)
+    send({ type: 'step' })
+    const evaluation = last().evaluation!
+    expect(evaluation.parameters.map((p) => p.length)).toEqual([16, 8, 8, 1])
+    expect(evaluation.parameters).toEqual(engine.getParameterValues())
+    expect(evaluation.gradientNorms).toHaveLength(2)
+    expect(evaluation.gradientNorms!.every((n) => n > 0)).toBe(true)
+    expect(evaluation.grid).toHaveLength(TEST_GRID * TEST_GRID)
+    expect(evaluation.trainAccuracy).toBeGreaterThanOrEqual(0)
+    expect(evaluation.testAccuracy).not.toBeNull()
+    expect(evaluation.testLoss).not.toBeNull()
+  })
+
+  it('reset repeats the same run, and the learning rate can change without a reset', () => {
+    const { send, last } = setup(new WasmEngine(wasmModule))
+    send(configure)
+    for (let i = 0; i < 10; i++) send({ type: 'step' })
+    const firstRun = last().loss
+    send({ type: 'reset' })
+    for (let i = 0; i < 10; i++) send({ type: 'step' })
+    expect(last().loss).toBe(firstRun)
+
+    send({ type: 'setLearningRate', learningRate: 0.01 })
+    send({ type: 'step' })
+    send({ type: 'step' })
+    expect(last().step).toBe(12)
+    expect(Number.isFinite(last().loss)).toBe(true)
+  })
+
+  it('runs for a while at speed without losing a step', () => {
+    const { send, clock, snapshots } = setup(new WasmEngine(wasmModule))
+    send(configure)
+    send({ type: 'setSpeed', speed: 'fast' })
+    send({ type: 'start' })
+    clock.advance(500)
+    send({ type: 'pause' })
+    const steps = snapshots().flatMap((s) => s.losses).map((sample) => sample.step)
+    expect(steps.length).toBeGreaterThan(100)
+    expect(steps).toEqual(Array.from({ length: steps.length }, (_, i) => i + 1))
   })
 })
