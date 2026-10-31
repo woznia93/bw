@@ -37,6 +37,33 @@ export function edgeStyle(weight: number, largest: number) {
   }
 }
 
+// Connections are drawn in groups of similar thickness, so that the drawing style only
+// has to be set once per group
+export const EDGE_BUCKETS = 8
+
+// Which group a connection of weight w belongs to, relative to the biggest weight
+export function edgeBucket(weight: number, largest: number, buckets = EDGE_BUCKETS) {
+  const strength = largest > 0 ? Math.min(1, Math.abs(weight) / largest) : 0
+  return { positive: weight >= 0, bucket: Math.min(buckets - 1, Math.floor(strength * buckets)) }
+}
+
+// How to draw every connection in a group: the style of the group's middle strength
+export function bucketStyle(bucket: number, buckets = EDGE_BUCKETS) {
+  return edgeStyle((bucket + 0.5) / buckets, 1)
+}
+
+// A big network has thousands of connections, which is both slow to draw and an
+// unreadable tangle. This picks which to draw: all of them if there are few, otherwise
+// the `max` strongest. Returns their positions in `strengths`, in their original order.
+export function strongestEdges(strengths: ArrayLike<number>, max: number): number[] {
+  const count = strengths.length
+  const all = Array.from({ length: count }, (_, i) => i)
+  if (count <= max) return all
+  // The strongest `max`; ties are broken by position so the choice is stable
+  all.sort((a, b) => strengths[b] - strengths[a] || a - b)
+  return all.slice(0, max).sort((a, b) => a - b)
+}
+
 export type LayerSummary = {
   name: string
   inputs: number

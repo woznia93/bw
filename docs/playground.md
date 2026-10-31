@@ -10,7 +10,7 @@
 > | 3 | Training in a Web Worker and controls | No |
 > | 4 | Decision boundary and loss curve | No |
 > | 5 | Configurability and polish | No |
-> | 6 | C++ engine compiled to WebAssembly | **Yes** |
+> | 6 | C++ engine compiled to WebAssembly (built with clang's WebAssembly target and a C interface rather than Emscripten and Embind, see `cpp/wasm/README.md`) | **Yes** |
 > | 7 | Autograd inspector | Partly (real graphs) |
 > | 8 | Launch: homepage, nav, write-up | No |
 >

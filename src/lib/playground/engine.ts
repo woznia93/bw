@@ -12,11 +12,11 @@ import {
 import { createRandom } from './datasets'
 import type { NetworkConfig, NetworkEngine, Point } from './types'
 
-// What the UI says about this engine, so nobody mistakes it for the C++ build
-// (which replaces it in step 6 of the plan in docs/playground.md)
+// What the UI says about this engine, so nobody mistakes it for the C++ build. The
+// playground uses it only when the C++ build can't be loaded.
 export const REFERENCE_ENGINE_LABEL = 'TypeScript reference engine'
 export const REFERENCE_ENGINE_NOTE =
-  'A TypeScript stand-in that follows the C++ autograd engine and is tested against its numbers. The C++ build running in the browser comes later.'
+  "The C++ engine couldn't be loaded here, so this is a TypeScript stand-in that follows it and is tested against its numbers."
 
 // The same settings as the C++ engine's SGD (momentum) and Adam
 export const MOMENTUM = 0.9
@@ -25,7 +25,7 @@ export const ADAM = { beta1: 0.9, beta2: 0.999, epsilon: 1e-8 }
 export const MAX_HIDDEN_LAYERS = 6
 export const MAX_NEURONS = 32
 
-function validate(config: NetworkConfig) {
+export function validate(config: NetworkConfig) {
   if (!Array.isArray(config.hidden) || config.hidden.length > MAX_HIDDEN_LAYERS) {
     throw new Error(`hidden must list at most ${MAX_HIDDEN_LAYERS} layers`)
   }
