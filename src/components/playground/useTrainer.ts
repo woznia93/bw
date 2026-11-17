@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { appendHistory } from '@/lib/playground/history'
 import type { LossPoint } from '@/lib/playground/history'
+import type { GraphTrace, InspectRequest } from '@/lib/playground/graph'
 import type {
   Evaluation,
   Speed,
@@ -46,6 +47,12 @@ export function useTrainer({
   const [testHistory, setTestHistory] = useState<LossPoint[]>([])
   const [engine, setEngine] = useState<{ label: string; note: string } | null>(null)
   const [message, setMessage] = useState<string | null>(null)
+  // Changes whenever training starts over, so views built from the network know to refresh
+  const [runId, setRunId] = useState(0)
+
+  // Questions for the worker (see inspect) that haven't been answered yet
+  const nextInspect = useRef(1)
+  const pending = useRef(new Map<number, { resolve: (trace: GraphTrace) => void; reject: (error: Error) => void }>())
 
   // The worker's startup handshake needs the latest values, not the ones from
   // when the effect was created
@@ -62,6 +69,7 @@ export function useTrainer({
     setStatus('paused')
     setMessage(null)
     run.current = 0
+    setRunId(0)
 
     let worker: Worker
     try {
@@ -86,6 +94,7 @@ export function useTrainer({
         setLoss(data.loss)
         const newRun = data.run !== run.current
         run.current = data.run
+        setRunId(data.run)
         if (data.evaluation) setEvaluation(data.evaluation)
         // A new run clears the loss curves; otherwise the new points are added to them
         if (newRun) setHistory(data.losses)
@@ -101,6 +110,12 @@ export function useTrainer({
               : appendHistory(current, [{ step: data.step, loss: testLoss }], MAX_HISTORY)
           )
         }
+      } else if (data.type === 'trace') {
+        const waiting = pending.current.get(data.id)
+        pending.current.delete(data.id)
+        if (!waiting) return
+        if (data.trace) waiting.resolve(data.trace)
+        else waiting.reject(new Error(data.error ?? 'The graph could not be built'))
       } else if (data.type === 'error') {
         setMessage(data.message)
       }
@@ -111,9 +126,12 @@ export function useTrainer({
       setMessage('The training engine stopped unexpectedly.')
     }
 
+    const waiting = pending.current
     return () => {
       worker.terminate()
       workerRef.current = null
+      waiting.forEach((entry) => entry.reject(new Error('The training engine restarted')))
+      waiting.clear()
     }
   }, [attempt])
 
@@ -138,8 +156,22 @@ export function useTrainer({
     if (phase === 'ready') send({ type: 'setSpeed', speed })
   }, [phase, speed, send])
 
+  // Ask the engine for a computation graph and its backward pass (for the autograd inspector)
+  const inspect = useCallback(
+    (request: InspectRequest) =>
+      new Promise<GraphTrace>((resolve, reject) => {
+        if (!workerRef.current) return reject(new Error('The training engine is not running'))
+        const id = nextInspect.current++
+        pending.current.set(id, { resolve, reject })
+        send({ type: 'inspect', id, request })
+      }),
+    [send]
+  )
+
   return {
     phase,
+    runId,
+    inspect,
     status,
     step,
     loss,
