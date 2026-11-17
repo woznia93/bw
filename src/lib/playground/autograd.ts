@@ -146,15 +146,31 @@ export const tanh = (x: Tensor) =>
 export const sigmoid = (x: Tensor) =>
   elementwise(x, 'sigmoid', (v) => 1 / (1 + Math.exp(-v)), (_, y) => y * (1 - y))
 
+// Same shape, or a vector [M] added to every row of a matrix [N, M] (broadcasting, as in
+// the C++ engine). A broadcast input's gradient is summed over the rows it was copied into.
 export function add(a: Tensor, b: Tensor): Tensor {
-  expectShape(a, b, 'add')
-  const y = new Tensor(a.shape)
-  for (let i = 0; i < y.size; i++) y.data[i] = a.data[i] + b.data[i]
+  const broadcast = a.shape.length !== b.shape.length
+  const matrix = a.shape.length >= b.shape.length ? a : b
+  if (broadcast) {
+    const vector = matrix === a ? b : a
+    if (matrix.shape.length !== 2 || vector.shape.length !== 1 || matrix.shape[1] !== vector.shape[0]) {
+      throw new Error(`add: shape mismatch [${a.shape}] vs [${b.shape}]`)
+    }
+  } else {
+    expectShape(a, b, 'add')
+  }
+
+  const columns = matrix.shape[matrix.shape.length - 1]
+  // Where each input's value for output position i lives
+  const at = (input: Tensor, i: number) => (input.shape.length === matrix.shape.length ? i : i % columns)
+
+  const y = new Tensor(matrix.shape)
+  for (let i = 0; i < y.size; i++) y.data[i] = a.data[at(a, i)] + b.data[at(b, i)]
   return record(y, [a, b], 'add', () => {
     for (const input of [a, b]) {
       if (!input.requiresGrad) continue
       const gi = input.gradBuffer()
-      for (let i = 0; i < y.size; i++) gi[i] += y.grad![i]
+      for (let i = 0; i < y.size; i++) gi[at(input, i)] += y.grad![i]
     }
   })
 }
@@ -221,14 +237,9 @@ export function bceLoss(pred: Tensor, target: Tensor): Tensor {
   })
 }
 
-// Reverse-mode pass from a scalar: every tensor that fed into `loss` ends up
-// with grad = d loss / d tensor. Gradients add up where a tensor is used more
-// than once, so the order matters: a tensor is only processed after everything
-// that uses it.
-export function backward(loss: Tensor) {
-  if (loss.size !== 1) throw new Error('backward: needs a single value')
-  if (!loss.requiresGrad) throw new Error('backward: nothing here requires gradients')
-
+// The order backward() visits tensors in: the loss first, and a tensor only after
+// everything that uses it, so that its gradient is complete when its turn comes.
+export function backwardOrder(loss: Tensor): Tensor[] {
   const order: Tensor[] = []
   const seen = new Set<Tensor>()
   // Depth-first walk, written with a stack so deep graphs can't overflow the call stack
@@ -247,12 +258,44 @@ export function backward(loss: Tensor) {
       stack.pop()
     }
   }
+  return order.reverse()
+}
 
+function requireScalarLoss(loss: Tensor) {
+  if (loss.size !== 1) throw new Error('backward: needs a single value')
+  if (!loss.requiresGrad) throw new Error('backward: nothing here requires gradients')
+}
+
+// Reverse-mode pass from a scalar: every tensor that fed into `loss` ends up
+// with grad = d loss / d tensor. Gradients add up where a tensor is used more
+// than once, so the order matters: see backwardOrder.
+export function backward(loss: Tensor) {
+  requireScalarLoss(loss)
+  const order = backwardOrder(loss)
   loss.grad = new Float32Array([1])
-  for (let i = order.length - 1; i >= 0; i--) {
-    const tensor = order[i]
+  for (const tensor of order) {
     if (tensor.backwardFn && tensor.grad) tensor.backwardFn()
   }
+}
+
+// The same pass, one tensor at a time, recording the gradient of every tensor in `watch`
+// before the first step and after each one. It does exactly what backward() does, so
+// the last snapshot is what backward() leaves behind.
+export function backwardTrace(loss: Tensor, watch: Tensor[]) {
+  requireScalarLoss(loss)
+  const order = backwardOrder(loss)
+  loss.grad = new Float32Array([1])
+  const snapshot = () => watch.map((tensor) => (tensor.grad ? tensor.grad.slice() : null))
+
+  const initial = snapshot()
+  const steps: { node: Tensor; grads: (Float32Array | null)[] }[] = []
+  for (const tensor of order) {
+    if (tensor.backwardFn && tensor.grad) {
+      tensor.backwardFn()
+      steps.push({ node: tensor, grads: snapshot() })
+    }
+  }
+  return { initial, steps }
 }
 
 export function zeroGrad(tensors: Tensor[]) {

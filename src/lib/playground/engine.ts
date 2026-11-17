@@ -10,6 +10,8 @@ import {
   zeroGrad,
 } from './autograd'
 import { createRandom } from './datasets'
+import type { InspectRequest, RawGraph } from './graph'
+import { inspectWithTs } from './inspect-ts'
 import type { NetworkConfig, NetworkEngine, Point } from './types'
 
 // What the UI says about this engine, so nobody mistakes it for the C++ build. The
@@ -165,6 +167,20 @@ export class ReferenceEngine implements NetworkEngine {
   reset() {
     if (!this.config) throw new Error('call initialize() first')
     this.build()
+  }
+
+  // The computation graph and backward pass for one data point, built from copies of the
+  // current weights so that training is untouched
+  inspect(request: InspectRequest): RawGraph {
+    if (request.kind !== 'network') return inspectWithTs(request)
+    const config = this.config
+    if (!config) throw new Error('call initialize() first')
+    return inspectWithTs(request, {
+      weights: this.weights.map((w) => w.data.slice()),
+      biases: this.biases.map((b) => b.data.slice()),
+      sizes: [2, ...config.hidden, 1],
+      activation: config.activation,
+    })
   }
 
   // Weights and biases in layer order: weight, bias, weight, bias, ...
