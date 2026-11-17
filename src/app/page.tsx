@@ -1,5 +1,6 @@
 import Image from 'next/image'
 import { BlogPosts } from '@/components/posts'
+import { PlaygroundPreview } from '@/components/playground-preview'
 
 export default function Page() {
   return (
@@ -23,6 +24,9 @@ export default function Page() {
         I love exploring how intelligent systems can analyze data, learn patterns, and solve real-world problems in creative ways. 
         I enjoy understanding how things work under the hood and continuously refining my skills to write cleaner, smarter, and more scalable code.`}
       </p>
+      <div className="my-8">
+        <PlaygroundPreview />
+      </div>
       <div className="my-8">
         <BlogPosts />
       </div>

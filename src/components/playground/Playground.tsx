@@ -89,11 +89,6 @@ export function Playground() {
 
   return (
     <div className="space-y-4">
-      <p className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900 dark:border-blue-800 dark:bg-blue-950 dark:text-blue-100">
-        Work in progress. This page isn&apos;t linked from the rest of the site yet, and a few
-        views are still to come.
-      </p>
-
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_15rem]">
         <Panel title="Training dashboard">
           <div className="space-y-3">

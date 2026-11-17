@@ -1,0 +1,68 @@
+---
+title: "Neural Network Playground"
+publishedAt: "2026-11-17"
+summary: "Train a small neural network in your browser with my own C++ autograd engine, compiled to WebAssembly, and step through its backward pass."
+recommended: true
+author: "Brady Wozniak"
+github: "https://github.com/woznia93/gpu_nn_framework"
+---
+
+The [playground](/playground) lets you build a small neural network, train it on a dataset, and watch it learn. What makes it different from other playgrounds is what runs the network: it is [gpu_nn_framework](https://github.com/woznia93/gpu_nn_framework), the C++ tensor and autograd library I wrote from scratch, compiled to WebAssembly and running in your browser. There is no server and no ML library involved.
+
+## What you can do
+
+- Pick a dataset (XOR or concentric circles), its noise and a seed, then choose hidden layers, width, activation (ReLU, Tanh, Sigmoid), optimizer (SGD, SGD with momentum, Adam) and learning rate.
+- Watch the decision boundary, the loss curve for training and held-out test points, accuracy, per-layer gradient norms, and a diagram of the weights.
+- Open the **autograd inspector** and step through a computation graph: a worked example (`a = ReLU(w·x + b)` with numbers you can edit), a value used more than once, a bias broadcast across rows, and the graph of the network you are training, run on one data point.
+
+## How it fits together
+
+```
+React page --commands--> Web Worker --> TrainingSession --> engine
+     ^                                                       (C++ in WebAssembly,
+     '------- snapshots and traces --------------------------  or TypeScript)
+```
+
+Training runs in a Web Worker so the page stays responsive. The worker paces the steps, and sends back throttled snapshots: the loss, the network's predictions on a 64 × 64 grid for the boundary, accuracies, weights and gradients. The page never depends on which engine is behind the worker. Both implement the same small interface, and the page says which one it got.
+
+### Compiling the C++ engine without Emscripten
+
+The engine is compiled with clang's `wasm32-wasi` target and a small C interface (`cpp/wasm/playground_adapter.cpp`) instead of Emscripten and Embind. The adapter exposes plain functions on plain numbers (initialize, set the data, train a step, predict, read weights and gradients), so no C++ types cross the boundary and the JavaScript wrapper is about 300 lines.
+
+Some things had to give. The WebAssembly C++ library has no exceptions, so the engine's `throw` statements are turned into "record the message, then trap", and the adapter checks every argument first so that path is never reached in normal use. The module needs just six WASI functions, which the page implements itself. The build is reproducible: the same source and compiler give a byte-identical 312,324-byte file, and `cpp/wasm/README.md` shows how to check the committed one.
+
+If the module can't be loaded, the page falls back to a TypeScript engine that follows the C++ one and says so.
+
+## Is it correct?
+
+The C++ engine already had its own test suite. For the playground I checked the whole path, from the browser's point of view:
+
+- Reference numbers (initial weights, losses and final weights after training, for 10 configurations covering every activation and optimizer) come from the **native** C++ build. The WebAssembly build matches them to float32 rounding.
+- The TypeScript fallback is held to the same numbers, and also to finite differences on every gradient.
+- The autograd inspector's graphs from the C++ engine and from the TypeScript one are compared node by node and number by number in the tests.
+
+## Reverse-mode autograd in four sentences
+
+Every operation records what it was computed from and a backward function. The backward pass starts at the loss with a gradient of 1 and visits nodes in reverse topological order, so a node's turn comes only after everything that uses it has sent back its share. Where a value is used more than once, the shares **add up**: for `f = x·x + x`, x receives two gradients from the multiplication and one from the addition, and `df/dx = 2x + 1`. Where a value was broadcast (a bias added to every row), its gradient is the **sum** over the rows it was copied into.
+
+The inspector shows exactly this. For the C++ engine, the adapter runs `AutogradEngine::backward` written out one node at a time, with the same ordering and the same `apply()` calls, and copies the gradients between steps. So what you step through are the engine's real values and gradients, not an illustration.
+
+## Performance
+
+Measured in Node 22 on a 4-core cloud container (single-threaded here), training on 200 points with tanh and plain SGD. Steps per second is the median of five runs of 300 full-batch steps. The grid time is one prediction over the 64 × 64 boundary grid.
+
+| Hidden layers | C++ (WebAssembly) | TypeScript | Boundary grid, C++ / TS |
+| --- | --- | --- | --- |
+| 8 | 21,850 steps/s | 8,950 steps/s | 0.7 ms / 0.9 ms |
+| 16, 16 | 5,170 steps/s | 1,870 steps/s | 2.3 ms / 4.7 ms |
+| 32, 32, 32 | 1,270 steps/s | 335 steps/s | 7.9 ms / 22.6 ms |
+
+The WebAssembly build is 2.4× to 3.8× faster on training and the gap grows with the size of the network. These are small numbers from one machine and one JavaScript engine, not a general claim: browsers differ, and the page throttles drawing, so the speed setting rather than raw throughput is what you will notice.
+
+## Limits
+
+- It runs on the CPU, single-threaded, on small models. The framework's CUDA kernels are not used here; large models would need a backend.
+- The network is a plain multilayer perceptron on two inputs, with binary cross-entropy.
+- The two engines draw their random starting weights differently, so the same seed gives different (but each reproducible) networks.
+
+The source for the page, the adapter and the build is in [the site's repository](https://github.com/woznia93/bw), and the engine is at [gpu_nn_framework](https://github.com/woznia93/gpu_nn_framework).

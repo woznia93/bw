@@ -416,6 +416,17 @@ const commands: Record<string, Command> = {
     }),
   },
 
+  playground: {
+    desc: 'Train a neural network in the browser',
+    run: () => ({
+      out: [
+        text('Opening /playground', 'dim'),
+        text('A small network trained by my C++ autograd engine, running as WebAssembly.', 'dim'),
+      ],
+      effects: [{ type: 'navigate', path: '/playground' }],
+    }),
+  },
+
   theme: {
     desc: 'Change colors',
     usage: 'theme [name]',

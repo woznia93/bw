@@ -13,6 +13,9 @@ const navItems = {
   '/music': {
     name: 'music',
   },
+  '/playground': {
+    name: 'playground',
+  },
   '/resume': {
     name: 'resume',
   },
