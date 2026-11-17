@@ -612,3 +612,53 @@ describe('with the C++ engine compiled to WebAssembly', () => {
     expect(steps).toEqual(Array.from({ length: steps.length }, (_, i) => i + 1))
   })
 })
+
+describe('inspect', () => {
+  const traces = (events: TrainerEvent[]) =>
+    events.filter((e) => e.type === 'trace') as Extract<TrainerEvent, { type: 'trace' }>[]
+
+  it('answers with a trace carrying the id it was asked with', () => {
+    const { send, events } = setup()
+    send(configure)
+    send({ type: 'inspect', id: 7, request: { kind: 'worked', x: 2, w: 3, b: -1 } })
+    const [answer] = traces(events)
+    expect(answer.id).toBe(7)
+    expect(answer.error).toBeUndefined()
+    expect(answer.trace!.nodes.map((n) => n.label)).toEqual(['w', 'x', 'wx', 'b', 'z', 'a'])
+  })
+
+  it('traces the network on a point without changing training', () => {
+    const plain = setup()
+    plain.send(configure)
+    plain.send({ type: 'step' })
+    plain.send({ type: 'step' })
+
+    const inspected = setup()
+    inspected.send(configure)
+    inspected.send({ type: 'step' })
+    inspected.send({ type: 'inspect', id: 1, request: { kind: 'network', x: 0.3, y: 0.1, label: 1 } })
+    inspected.send({ type: 'step' })
+
+    expect(traces(inspected.events)[0].trace!.nodes.some((n) => n.label === 'loss')).toBe(true)
+    expect(brief(inspected.last())).toEqual(brief(plain.last()))
+  })
+
+  it('keeps running training running', () => {
+    const { send, clock, last } = setup()
+    send(configure)
+    send({ type: 'start' })
+    send({ type: 'inspect', id: 1, request: { kind: 'reuse', x: 2 } })
+    clock.advance(200)
+    expect(last().status).toBe('running')
+    expect(last().step).toBeGreaterThan(0)
+  })
+
+  it('reports a failure on its own, without pausing or raising an error', () => {
+    const { send, events, errors } = setup()
+    send({ type: 'inspect', id: 2, request: { kind: 'reuse', x: 1 } })
+    const [answer] = traces(events)
+    expect(answer.trace).toBeNull()
+    expect(answer.error).toMatch(/not been set up/)
+    expect(errors()).toHaveLength(0)
+  })
+})

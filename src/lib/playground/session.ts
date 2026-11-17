@@ -1,4 +1,5 @@
 import { GRID_SIZE, gridInputs } from './grid'
+import { buildTrace, type InspectRequest } from './graph'
 import { thin } from './history'
 import { binaryCrossEntropy, classificationAccuracy, l2Norm } from './metrics'
 import { SPEEDS } from './protocol'
@@ -100,6 +101,9 @@ export class TrainingSession {
           this.train(1)
           this.snapshot(true)
           break
+        case 'inspect':
+          this.inspect(command.id, command.request)
+          break
         case 'reset':
           this.requireConfigured()
           this.stop()
@@ -112,6 +116,16 @@ export class TrainingSession {
       this.stop()
       this.post({ type: 'error', message: error instanceof Error ? error.message : String(error) })
       if (this.configured) this.snapshot(true)
+    }
+  }
+
+  // A failed inspection is reported on its own: it doesn't pause training
+  private inspect(id: number, request: InspectRequest) {
+    try {
+      this.requireConfigured()
+      this.post({ type: 'trace', id, trace: buildTrace(this.engine.inspect(request)) })
+    } catch (error) {
+      this.post({ type: 'trace', id, trace: null, error: error instanceof Error ? error.message : String(error) })
     }
   }
 
