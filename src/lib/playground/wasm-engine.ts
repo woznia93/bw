@@ -1,4 +1,5 @@
 import { validate } from './engine'
+import type { InspectRequest, RawGraph } from './graph'
 import type { NetworkConfig, NetworkEngine, Point } from './types'
 import { createWasiImports } from './wasi'
 
@@ -24,6 +25,22 @@ type Exports = {
   pg_get_param(index: number, output: number): number
   pg_set_param(index: number, values: number): number
   pg_get_grad(index: number, output: number): number
+  pg_graph_build(kind: number, a: number, b: number, c: number): number
+  pg_graph_node_count(): number
+  pg_graph_step_count(): number
+  pg_graph_root(): number
+  pg_graph_node_label(index: number): number
+  pg_graph_node_op(index: number): number
+  pg_graph_node_rank(index: number): number
+  pg_graph_node_dim(index: number, axis: number): number
+  pg_graph_node_numel(index: number): number
+  pg_graph_node_requires_grad(index: number): number
+  pg_graph_node_parent_count(index: number): number
+  pg_graph_node_parent(index: number, which: number): number
+  pg_graph_node_value(index: number, output: number): number
+  pg_graph_step_node(step: number): number
+  pg_graph_grad_defined(step: number, index: number): number
+  pg_graph_grad(step: number, index: number, output: number): number
 }
 
 // What the UI says about this engine
@@ -148,6 +165,54 @@ export class WasmEngine implements NetworkEngine {
   // Gradients from the latest step, in the same order (zeros before the first step)
   getGradientValues(): Float32Array[] {
     return this.readAll((index, pointer) => this.exports.pg_get_grad(index, pointer))
+  }
+
+  // The computation graph and backward pass for one of the examples (or for the current
+  // network on one data point), built and run by the C++ engine itself
+  inspect(request: InspectRequest): RawGraph {
+    this.requireInitialized()
+    const e = this.exports
+    const [kind, a, b, c] =
+      request.kind === 'worked' ? [0, request.x, request.w, request.b]
+      : request.kind === 'reuse' ? [1, request.x, 0, 0]
+      : request.kind === 'broadcast' ? [2, 0, 0, 0]
+      : [3, request.x, request.y, request.label]
+    this.check(this.call(() => e.pg_graph_build(kind, a, b, c)))
+
+    const count = this.call(() => e.pg_graph_node_count())
+    const steps = this.call(() => e.pg_graph_step_count())
+    const numel = (i: number) => this.call(() => e.pg_graph_node_numel(i))
+    const grab = (fill: (pointer: number) => number, size: number) =>
+      this.withBuffer(size, (pointer) => {
+        this.check(fill(pointer))
+        return this.read(pointer, size)
+      })
+    const gradsAt = (step: number) =>
+      Array.from({ length: count }, (_, i) =>
+        this.call(() => e.pg_graph_grad_defined(step, i)) ? grab((p) => e.pg_graph_grad(step, i, p), numel(i)) : null
+      )
+
+    const nodes = Array.from({ length: count }, (_, i) => ({
+      label: this.readString(this.call(() => e.pg_graph_node_label(i))),
+      engineOp: this.readString(this.call(() => e.pg_graph_node_op(i))),
+      shape: Array.from({ length: this.call(() => e.pg_graph_node_rank(i)) }, (_, axis) =>
+        this.call(() => e.pg_graph_node_dim(i, axis))
+      ),
+      parents: Array.from({ length: this.call(() => e.pg_graph_node_parent_count(i)) }, (_, which) =>
+        this.call(() => e.pg_graph_node_parent(i, which))
+      ),
+      requiresGrad: this.call(() => e.pg_graph_node_requires_grad(i)) === 1,
+      value: grab((p) => e.pg_graph_node_value(i, p), numel(i)),
+    }))
+    return {
+      nodes,
+      root: this.call(() => e.pg_graph_root()),
+      initial: gradsAt(-1),
+      steps: Array.from({ length: steps }, (_, s) => ({
+        node: this.call(() => e.pg_graph_step_node(s)),
+        grads: gradsAt(s),
+      })),
+    }
   }
 
   // For tests and for loading saved networks

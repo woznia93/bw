@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { DATASETS, DATASET_NAMES } from '@/lib/playground/datasets'
 import type { Speed } from '@/lib/playground/protocol'
 import type { Activation, DatasetName, NetworkConfig, Optimizer } from '@/lib/playground/types'
+import { AutogradInspector } from './AutogradInspector'
 import { ClassLegend, DatasetPlot } from './DatasetPlot'
 import { MetricsChart } from './MetricsChart'
 import { DEFAULT_LEARNING_RATE, NetworkEditor, learningRateFromExponent } from './NetworkEditor'
@@ -177,10 +178,8 @@ export function Playground() {
         />
       </Panel>
 
-      <Panel title="Autograd inspector" badge="Coming in step 7">
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
-          Click through the computation graph to see activations, weights and gradients.
-        </p>
+      <Panel title="Autograd inspector">
+        <AutogradInspector trainer={trainer} points={points} />
       </Panel>
     </div>
   )

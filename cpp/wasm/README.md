@@ -7,7 +7,7 @@ loaded, the page falls back to the TypeScript reference engine and says so.
 
 | File | What it is |
 | --- | --- |
-| `playground_adapter.cpp` | A C interface around the engine: build a network, set the data, train a step, predict, read weights and gradients. Plain functions on plain numbers. |
+| `playground_adapter.cpp` | A C interface around the engine: build a network, set the data, train a step, predict, read weights and gradients, and (for the autograd inspector) build a small computation graph with the engine's own operators and read it back node by node, with the gradients after each step of the backward pass. Plain functions on plain numbers. |
 | `no_throw.h` | Makes the engine's `throw` statements work without exceptions (see below). |
 | `build.sh` | Compiles the engine and the adapter into `engine.wasm`. |
 
@@ -41,8 +41,8 @@ the committed `engine.wasm` really is what the source produces:
 cpp/wasm/build.sh ../gpu_nn_framework /tmp/engine.wasm && cmp /tmp/engine.wasm public/playground/engine.wasm
 ```
 
-Built with Ubuntu's clang 18.1.3, the committed file is 273,885 bytes, SHA-256
-`9adfebd0ab2ebccff16961b3a903e94c63abf3dc78fef033419686ddf03bca15`.
+Built with Ubuntu's clang 18.1.3, the committed file is 312,324 bytes, SHA-256
+`768cd60cdb2c78768e55668f2699f50cb9de2828dad81d417772c62c1f034f0c`.
 
 ## How it differs from a normal build of the engine
 

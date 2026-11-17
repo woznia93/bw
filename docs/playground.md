@@ -11,7 +11,7 @@
 > | 4 | Decision boundary and loss curve | No |
 > | 5 | Configurability and polish | No |
 > | 6 | C++ engine compiled to WebAssembly (built with clang's WebAssembly target and a C interface rather than Emscripten and Embind, see `cpp/wasm/README.md`) | **Yes** |
-> | 7 | Autograd inspector | Partly (real graphs) |
+> | 7 | Autograd inspector: step through a worked example, then graphs built and differentiated by the engine itself (new `pg_graph_*` functions in the adapter) | **Yes** |
 > | 8 | Launch: homepage, nav, write-up | No |
 >
 > The design below is the original proposal. Where it describes the C++/WebAssembly

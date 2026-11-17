@@ -3,6 +3,8 @@ import {
   Tensor,
   add,
   backward,
+  backwardOrder,
+  backwardTrace,
   bceLoss,
   linear,
   mul,
@@ -192,5 +194,57 @@ describe('graph recording', () => {
     )
     expect(() => backward(relu(leaf([2], [1, 2])))).toThrow(/single value/)
     expect(() => new Tensor([2, 2], new Float32Array(3))).toThrow(/needs 4 values/)
+  })
+})
+
+describe('broadcast add', () => {
+  it('adds a vector to every row', () => {
+    const x = new Tensor([2, 3], new Float32Array([1, 2, 3, 4, 5, 6]))
+    const b = new Tensor([3], new Float32Array([10, 20, 30]))
+    expect(Array.from(add(x, b).data)).toEqual([11, 22, 33, 14, 25, 36])
+    expect(Array.from(add(b, x).data)).toEqual([11, 22, 33, 14, 25, 36])
+  })
+
+  it("sums the vector's gradient over rows (finite differences)", () => {
+    const x = leaf([3, 2], [0.5, -1, 2, 0.25, -0.75, 1])
+    const b = leaf([2], [0.3, -0.2])
+    checkGradients(() => weightedSum(add(x, b)), [x, b])
+  })
+
+  it('rejects shapes that do not broadcast', () => {
+    expect(() => add(leaf([2, 3], [1, 2, 3, 4, 5, 6]), leaf([2], [1, 2]))).toThrow(/shape mismatch/)
+  })
+})
+
+describe('backwardOrder and backwardTrace', () => {
+  const build = () => {
+    const x = leaf([1], [2])
+    const y = mul(x, x)
+    const f = add(y, x)
+    return { x, y, f }
+  }
+
+  it('visits the loss first and every tensor after everything that uses it', () => {
+    const { x, y, f } = build()
+    expect(backwardOrder(f)).toEqual([f, y, x])
+  })
+
+  it('ends with the gradients backward() computes', () => {
+    const a = build()
+    backward(a.f)
+    const b = build()
+    const trace = backwardTrace(b.f, [b.x, b.y, b.f])
+    expect(Array.from(trace.steps[trace.steps.length - 1].grads[0]!)).toEqual(Array.from(a.x.grad!))
+    // df/dx = 2x + 1
+    expect(a.x.grad![0]).toBe(5)
+  })
+
+  it('records the gradients before the first step and after each one', () => {
+    const { x, y, f } = build()
+    const { initial, steps } = backwardTrace(f, [x, y, f])
+    expect(initial.map((g) => (g ? Array.from(g) : null))).toEqual([null, null, [1]])
+    expect(steps.map((s) => s.node)).toEqual([f, y])
+    expect(steps[0].grads.map((g) => (g ? Array.from(g) : null))).toEqual([[1], [1], [1]])
+    expect(steps[1].grads.map((g) => (g ? Array.from(g) : null))).toEqual([[5], [1], [1]])
   })
 })

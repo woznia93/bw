@@ -1,3 +1,4 @@
+import type { GraphTrace, InspectRequest } from './graph'
 import type { NetworkConfig, Point } from './types'
 
 // One point on the loss curve
@@ -27,6 +28,9 @@ export type TrainerCommand =
   | { type: 'step' }
   // Back to the starting weights
   | { type: 'reset' }
+  // Build a computation graph and run its backward pass, for the autograd inspector. The
+  // answer is a 'trace' event carrying the same id. It doesn't touch training.
+  | { type: 'inspect'; id: number; request: InspectRequest }
 
 export type TrainerStatus = 'paused' | 'running'
 
@@ -48,6 +52,8 @@ export type TrainerEvent =
       // snapshot, which is most of them while training runs fast.
       evaluation: Evaluation | null
     }
+  // The answer to an 'inspect' command: the graph, or why it couldn't be built
+  | { type: 'trace'; id: number; trace: GraphTrace | null; error?: string }
   // Something the visitor should know about; training is paused if it was running
   | { type: 'error'; message: string }
 
