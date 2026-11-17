@@ -23,7 +23,7 @@ src/
 │   │   └── posts/         # Project write-ups (.mdx)
 │   ├── music/             # Now playing and weekly Spotify stats
 │   ├── resume/            # On-site PDF viewer for the resume
-│   ├── playground/        # Neural network playground (in progress, hidden)
+│   ├── playground/        # Neural network playground
 │   ├── api/spotify/       # Now-playing and history sync endpoints
 │   ├── api/terminal/      # Project content the terminal loads when opened
 │   ├── og/                # Dynamic Open Graph image generation
@@ -85,9 +85,9 @@ Post content goes here.
 
 `title`, `publishedAt` and `summary` are required. `image`, `author`, `github` and `recommended` are optional.
 
-## Neural network playground (in progress)
+## Neural network playground
 
-`/playground` will let visitors configure, train and inspect a small neural network in the browser. It's being built in ordered steps, tracked in [#13](https://github.com/woznia93/bw/issues/13), and stays hidden (not linked, `noindex`) until the last step. The design is in [`docs/playground.md`](docs/playground.md).
+`/playground` lets visitors configure, train and inspect a small neural network in the browser. It has a tab in the nav, a preview on the home page (`src/components/playground-preview.tsx`, a static picture, so the home page doesn't load the engine), a `playground` terminal command, and a write-up at `src/app/blog/posts/neural-network-playground.mdx` with measured benchmarks. It was built in ordered steps, tracked in [#13](https://github.com/woznia93/bw/issues/13); the design is in [`docs/playground.md`](docs/playground.md).
 
 The page draws the network's decision boundary (its predictions on a 64 x 64 grid, with a contour line where it switches class), a loss curve (training and held-out test), accuracy on both, gradient norms, and a diagram of the weights while it trains. The **autograd inspector** steps through a computation graph: a worked example (`a = ReLU(w·x + b)` with numbers you can edit), gradient accumulation (a value used more than once), broadcasting (a bias added to every row, its gradient summed back), and the graph of your own network for one data point. Every graph is built and differentiated by the engine itself, one backward step at a time, so what you see are the real values and gradients. You can choose ReLU, Tanh or Sigmoid, SGD, SGD with momentum or Adam, and a reproducible random seed.
 
@@ -101,7 +101,7 @@ The `resume` tab opens `/resume`, which shows `public/wozresume.pdf` inside the 
 
 Press `Ctrl+K` (or `Cmd+K`, or `~`) anywhere on the site, or click the `>_` button in the bottom-right corner, to open a terminal for exploring the portfolio. It's a second way to navigate, so the normal site works exactly as before. It opens as a centered window that can be dragged by its title bar (double-click the bar to re-center it) or expanded to full screen, and it's full screen on phones.
 
-Try `help`, `projects`, `neofetch`, `ls`, `cd projects`, `cat about.md`, `tree`, `grep CUDA`, `open <project>`, `resume` and `theme matrix`. Tab completes commands and paths, the up and down arrows browse history, `Ctrl+L` clears the screen and `Esc` closes it.
+Try `help`, `projects`, `playground`, `neofetch`, `ls`, `cd projects`, `cat about.md`, `tree`, `grep CUDA`, `open <project>`, `resume` and `theme matrix`. Tab completes commands and paths, the up and down arrows browse history, `Ctrl+L` clears the screen and `Esc` closes it.
 
 - **Nothing runs on a real shell.** Input is only matched against a fixed list of commands in `src/lib/terminal/commands.ts`, and the folders and files are a virtual filesystem built from the portfolio content (`src/lib/terminal/filesystem.ts`). There's no backend beyond one static route that serves the project posts.
 - **Add a command** by adding an entry to the `commands` object in `src/lib/terminal/commands.ts`. It receives the arguments and the current session and returns lines to print, plus optional effects such as opening a page.

@@ -46,6 +46,7 @@ export const PAGES: Record<string, string> = {
   about: '/about',
   projects: '/blog',
   music: '/music',
+  playground: '/playground',
 }
 
 export type Theme = {

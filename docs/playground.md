@@ -12,7 +12,7 @@
 > | 5 | Configurability and polish | No |
 > | 6 | C++ engine compiled to WebAssembly (built with clang's WebAssembly target and a C interface rather than Emscripten and Embind, see `cpp/wasm/README.md`) | **Yes** |
 > | 7 | Autograd inspector: step through a worked example, then graphs built and differentiated by the engine itself (new `pg_graph_*` functions in the adapter) | **Yes** |
-> | 8 | Launch: homepage, nav, write-up | No |
+> | 8 | Launch: homepage preview, nav tab, terminal command, write-up (`src/app/blog/posts/neural-network-playground.mdx`, with measured benchmarks), `noindex` removed | No |
 >
 > The design below is the original proposal. Where it describes the C++/WebAssembly
 > engine, steps 2 to 5 use a TypeScript stand-in behind the same interface
