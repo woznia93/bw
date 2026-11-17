@@ -43,6 +43,11 @@ describe('the module', () => {
         '_initialize', 'memory', 'pg_alloc', 'pg_free', 'pg_get_grad', 'pg_get_param', 'pg_init',
         'pg_last_error', 'pg_param_count', 'pg_param_size', 'pg_predict', 'pg_reset',
         'pg_set_dataset', 'pg_set_learning_rate', 'pg_set_param', 'pg_train_step', 'pg_version',
+        'pg_graph_build', 'pg_graph_grad', 'pg_graph_grad_defined', 'pg_graph_node_count',
+        'pg_graph_node_dim', 'pg_graph_node_label', 'pg_graph_node_numel', 'pg_graph_node_op',
+        'pg_graph_node_parent', 'pg_graph_node_parent_count', 'pg_graph_node_rank',
+        'pg_graph_node_requires_grad', 'pg_graph_node_value', 'pg_graph_root',
+        'pg_graph_step_count', 'pg_graph_step_node',
       ].sort()
     )
   })

@@ -1,5 +1,7 @@
 // Shared types for the neural network playground. See docs/playground.md.
 
+import type { InspectRequest, RawGraph } from './graph'
+
 export type ClassLabel = 0 | 1
 
 // Datasets live in the square [-1, 1] x [-1, 1]
@@ -42,4 +44,8 @@ export interface NetworkEngine {
   predict(inputs: Float32Array): Float32Array
   // Back to freshly initialized weights, same config and seed
   reset(): void
+  // The computation graph of one of the examples, or of the current network on one data
+  // point (built from copies of its weights, so training is not affected), and its
+  // backward pass one step at a time
+  inspect(request: InspectRequest): RawGraph
 }
