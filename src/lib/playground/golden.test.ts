@@ -1,12 +1,30 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import golden from './__fixtures__/golden.json'
 import { ReferenceEngine } from './engine'
-import type { Activation, Optimizer, Point } from './types'
+import type { Activation, NetworkEngine, Optimizer, Point } from './types'
+import { WasmEngine } from './wasm-engine'
 
-// The fixture was produced by the real C++ engine (see cpp/golden/README.md).
-// These tests run the TypeScript engine from the same starting weights on the
-// same data and check that every number agrees: the first gradients, the loss
-// at each step, and the weights and predictions at the end.
+// The fixture was produced by the real C++ engine, built natively (see
+// cpp/golden/README.md). These tests run both of the playground's engines, the
+// TypeScript one and the C++ engine compiled to WebAssembly, from the same starting
+// weights on the same data, and check that every number agrees: the first gradients,
+// the loss at each step, and the weights and predictions at the end.
+
+const wasmModule = new WebAssembly.Module(
+  readFileSync(new URL('../../../public/playground/engine.wasm', import.meta.url))
+)
+
+type TestEngine = NetworkEngine & { setParameterValues(values: ArrayLike<number>[]): void }
+
+const engines: { name: string; create: () => TestEngine; exemptAdamWeights: boolean }[] = [
+  // The TypeScript engine does its arithmetic in 64 bits and rounds to 32 on storing, so
+  // Adam magnifies its rounding differences from the C++ engine in some weights
+  { name: 'TypeScript engine', create: () => new ReferenceEngine(), exemptAdamWeights: true },
+  // The C++ engine in WebAssembly does the same 32-bit arithmetic as the native build,
+  // and is held to the strict tolerance everywhere
+  { name: 'C++ engine in WebAssembly', create: () => new WasmEngine(wasmModule), exemptAdamWeights: false },
+]
 
 const points: Point[] = golden.data.map(([x, y, label]) => ({ x, y, label: label as 0 | 1 }))
 const probe = new Float32Array(golden.probe.flat())
@@ -29,9 +47,10 @@ function expectClose(
   }
 }
 
-describe.each(golden.cases)('matches the C++ engine: $name', (testCase) => {
+describe.each(engines)('$name', ({ create, exemptAdamWeights }) => {
+describe.each(golden.cases)('matches the native C++ engine: $name', (testCase) => {
   const start = () => {
-    const engine = new ReferenceEngine()
+    const engine = create()
     engine.initialize({
       hidden: testCase.hidden,
       activation: testCase.activation as Activation,
@@ -65,10 +84,11 @@ describe.each(golden.cases)('matches the C++ engine: $name', (testCase) => {
     // weight (measured: up to 4e-5, on first-layer weights of the sigmoid network with
     // gradients 10-50x below typical). The losses and predictions, which is what the
     // network actually does, still match to a few 1e-7, and they stay strict.
-    const weightTolerance = testCase.optimizer === 'adam' ? 2e-4 : 1e-5
+    const weightTolerance = exemptAdamWeights && testCase.optimizer === 'adam' ? 2e-4 : 1e-5
     testCase.finalParams.forEach((expected, i) => {
       expectClose(engine.getParameterValues()[i], expected, `final parameter ${i}`, weightTolerance)
     })
     expectClose(engine.predict(probe), testCase.finalPredictions, 'final predictions')
   })
+})
 })
